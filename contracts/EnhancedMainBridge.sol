@@ -11,6 +11,11 @@ import {EnhancedMainBridgeUpgradeable} from "./proxy/EnhancedMainBridgeUpgradeab
 contract EnhancedMainBridge is EnhancedMainBridgeUpgradeable, OwnableUpgradeable, UUPSUpgradeable {
     uint8 constant TOKEN_DECIMALS = 18;
 
+    /*
+     * @warn you must declare new variable below the storage region, otherwise it will cause storage layout corruption
+     * @see https://docs.openzeppelin.com/upgrades-plugins/1.x/writing-upgradeable#modifying-your-contracts
+     */
+    // storage layout region start
     bool public isPaused = false;
 
     address public sideBridge;
@@ -28,6 +33,7 @@ contract EnhancedMainBridge is EnhancedMainBridgeUpgradeable, OwnableUpgradeable
 
     uint256 depositCount;
     uint256 requiredSignatures;
+    // storage layout region end
 
     event Deposited(bytes32 indexed sideTokenId, bytes32 indexed depositId, uint256 depositCount, address beneficiary, uint256 amountMT, uint256 amountST);
     event DepositConfirmed(bytes32 sideTokenId, bytes32 depositId, address beneficiary, uint256 amountMT, uint256 amountST);
