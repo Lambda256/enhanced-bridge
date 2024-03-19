@@ -1,5 +1,6 @@
 import { HardhatUserConfig } from "hardhat/config";
 import "@nomicfoundation/hardhat-toolbox";
+import "hardhat-storage-layout";
 import "./scripts/deploy";
 import "./scripts/upgrade";
 import "./scripts/deploy-transfer-all";
