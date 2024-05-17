@@ -35,6 +35,7 @@ contract EnhancedMainBridgeV2 is EnhancedMainBridgeUpgradeable, OwnableUpgradeab
     uint256 requiredSignatures;
 
     address[] private authorityList;
+    bool private authorityChanging = false;
     mapping(bytes32 => mapping(address => bool)) private changeAuthorityPossibleAuthorities;
     // storage layout region end
 
@@ -159,11 +160,13 @@ contract EnhancedMainBridgeV2 is EnhancedMainBridgeUpgradeable, OwnableUpgradeab
         require(authorities[_oldAuthority]); // _oldAuthority가 현재 authority여야함
         require(!authorities[_newAuthority]); // _newAuthority가 현재 authority가 아니어야함
         require(sideBridge != address(0), "side bridge not registered");
+        require(!authorityChanging, "authority changing");
 
         bytes32 changeId = keccak256(abi.encodePacked(_oldAuthority, _newAuthority, changeAuthorityCount));
 
         changeAuthoritySignedCount[changeId] = 0;
         changeAuthorityCount++;
+        authorityChanging = true;
 
         for (uint i = 0; i < authorityList.length; i++) {
             changeAuthorityPossibleAuthorities[changeId][authorityList[i]] = true;
@@ -182,7 +185,7 @@ contract EnhancedMainBridgeV2 is EnhancedMainBridgeUpgradeable, OwnableUpgradeab
         require(!changeAuthoritySignedHistory[_changeId][msg.sender]); // allow once for one authority
         require(changeAuthorityPossibleAuthorities[_changeId][msg.sender], "not possible authority"); // check if authority is possible to sign
         require(_changeId ==
-            keccak256(abi.encodePacked(_oldAuthority, _newAuthority)), "invalid changeId");
+            keccak256(abi.encodePacked(_oldAuthority, _newAuthority, changeAuthorityCount - 1)), "invalid changeId");
 
         changeAuthoritySignedHistory[_changeId][msg.sender] = true;
         changeAuthoritySignedCount[_changeId]++;
@@ -193,6 +196,7 @@ contract EnhancedMainBridgeV2 is EnhancedMainBridgeUpgradeable, OwnableUpgradeab
             authorities[_oldAuthority] = false;
             authorities[_newAuthority] = true;
             _updateAuthority(_oldAuthority, _newAuthority);
+            authorityChanging = false;
 
             emit AuthorityChanged(_oldAuthority, _newAuthority, _changeId, changeAuthoritySignedCount[_changeId]);
         }
