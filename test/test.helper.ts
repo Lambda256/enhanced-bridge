@@ -24,7 +24,8 @@ export async function deployEnhancedMainBridge(
   );
   await erc20Token.deployed();
 
-  const EnhancedMainBridge = await ethers.getContractFactory("EnhancedMainBridge");
+  const EnhancedMainBridge =
+    await ethers.getContractFactory("EnhancedMainBridge");
   const enhancedMainBridge = await EnhancedMainBridge.deploy();
   await enhancedMainBridge.deployed();
 
@@ -116,6 +117,9 @@ export class EnhancedProxyEventMatcher {
       }
       case "Unstaked": {
         return "0x0f5bb82176feb1b5e747e28471aa92156a04d9f3ab9f45f28e2d704232b93f75";
+      }
+      case "MainTokenWithdrawSigned": {
+        return "0x5b34e54d955185b4e39d529b203ed8338de517296675b59cc70b0708ce47928f";
       }
       default: {
         throw new Error(`Event ${event} not found`);
