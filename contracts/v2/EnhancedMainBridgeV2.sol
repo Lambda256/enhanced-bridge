@@ -74,6 +74,7 @@ contract EnhancedMainBridgeV2 is EnhancedMainBridgeUpgradeable, OwnableUpgradeab
         bool confirmed;
 
         mapping(address => bool) authoritySigned;
+        mapping(address => bool) possibleAuthorities;
     }
 
     struct WithdrawInfo {
@@ -86,6 +87,7 @@ contract EnhancedMainBridgeV2 is EnhancedMainBridgeUpgradeable, OwnableUpgradeab
         bool withdrawed;
 
         mapping(address => bool) authoritySigned;
+        mapping(address => bool) possibleAuthorities;
     }
 
     function initialize(
@@ -178,7 +180,7 @@ contract EnhancedMainBridgeV2 is EnhancedMainBridgeUpgradeable, OwnableUpgradeab
         require(_oldAuthority != address(0));
         require(_newAuthority != address(0));
         require(!changeAuthoritySignedHistory[_changeId][msg.sender]); // allow once for one authority
-        require(changeAuthorityPossibleAuthorities[_changeId][msg.sender]); // check if authority is possible to sign
+        require(changeAuthorityPossibleAuthorities[_changeId][msg.sender], "not possible authority"); // check if authority is possible to sign
         require(_changeId ==
             keccak256(abi.encodePacked(_oldAuthority, _newAuthority)), "invalid changeId");
 
@@ -282,6 +284,10 @@ contract EnhancedMainBridgeV2 is EnhancedMainBridgeUpgradeable, OwnableUpgradeab
         depositInfo.confirmed = false;
         depositInfo.confirmedCount = 0;
 
+        for (uint i = 0; i < authorityList.length; i++) {
+            depositInfo.possibleAuthorities[authorityList[i]] = true;
+        }
+
         emit Deposited(_sideTokenId, depositId, depositCount, _beneficiary, _amount, amountST);
     }
 
@@ -314,10 +320,13 @@ contract EnhancedMainBridgeV2 is EnhancedMainBridgeUpgradeable, OwnableUpgradeab
             withdrawInfo.beneficiary = _beneficiary;
             withdrawInfo.amountMT = amountMT;
             withdrawInfo.amountST = _amountST;
-
             withdrawInfo.withdrawed = false;
+            for (uint i = 0; i < authorityList.length; i++) {
+                withdrawInfo.possibleAuthorities[authorityList[i]] = true;
+            }
         }
 
+        require(withdrawInfo.possibleAuthorities[msg.sender], "not possible authority");
         require(withdrawInfo.beneficiary == _beneficiary);
 
         if (withdrawInfo.authoritySigned[msg.sender] == false) {
@@ -337,6 +346,8 @@ contract EnhancedMainBridgeV2 is EnhancedMainBridgeUpgradeable, OwnableUpgradeab
 
     function confirmDeposit(bytes32 depositId) external onlyAuthority() {
         DepositInfo storage depositInfo = deposits[depositId];
+        require(depositInfo.possibleAuthorities[msg.sender], "not possible authority");
+
         if (depositInfo.authoritySigned[msg.sender]) {
             return;
         }
