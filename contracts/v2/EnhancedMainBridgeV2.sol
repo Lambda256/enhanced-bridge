@@ -94,6 +94,9 @@ contract EnhancedMainBridgeV2 is EnhancedMainBridgeUpgradeable, OwnableUpgradeab
         __EnhancedMainBridge_init(chainId, token, mainAdmin);
     }
 
+    function initializeV2() reinitializer(2) public {
+    }
+
     modifier onlyAuthority() {
         require(authorities[msg.sender]);
         _;
