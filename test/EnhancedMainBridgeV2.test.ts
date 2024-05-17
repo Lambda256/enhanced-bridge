@@ -6,6 +6,7 @@ import {
   EnhancedMainBridgeV2,
 } from "../typechain-types";
 import { EnhancedProxyEventMatcher } from "./test.helper";
+import { expect } from "chai";
 
 describe("EnhancedMainBridgeV2", () => {
   let proxy: EnhancedERC1967Proxy;
@@ -150,6 +151,102 @@ describe("EnhancedMainBridgeV2", () => {
       EnhancedProxyEventMatcher.emit(receipt, "MainTokenWithdrawSigned");
     });
 
-    it("change authority request", async () => {});
+    it("change authority request", async () => {
+      const changeAuthorityRequest =
+        enhancedMainBridgeV2.interface.encodeFunctionData(
+          "changeAuthorityRequest",
+          [authority1.address, authority3.address],
+        );
+
+      const tx = await proxy.fallback({
+        data: changeAuthorityRequest,
+      });
+
+      const receipt = await tx.wait();
+      EnhancedProxyEventMatcher.emit(receipt, "ChangeAuthorityRequest");
+    });
+
+    it("change authority", async () => {
+      const changeIdPacked = ethers.utils.solidityPack(
+        ["address", "address", "uint256"],
+        [authority1.address, authority3.address, 0],
+      );
+      const changeId = ethers.utils.keccak256(changeIdPacked);
+
+      const changeAuthorityData =
+        enhancedMainBridgeV2.interface.encodeFunctionData("changeAuthority", [
+          changeId,
+          authority1.address,
+          authority3.address,
+        ]);
+
+      const tx1 = await proxy.connect(authority1).fallback({
+        data: changeAuthorityData,
+      });
+
+      await tx1.wait();
+
+      const tx2 = await proxy.connect(authority2).fallback({
+        data: changeAuthorityData,
+      });
+
+      const receipt = await tx2.wait();
+
+      EnhancedProxyEventMatcher.emit(receipt, "AuthorityChanged");
+    });
+
+    it("check authority list", async () => {
+      const authorityListData =
+        enhancedMainBridgeV2.interface.encodeFunctionData("getAuthorities");
+
+      const authorities = await ethers.provider.call({
+        to: proxy.address,
+        data: authorityListData,
+      });
+
+      // encode authorities and compare result
+      const expectedAuthorities = ethers.utils.defaultAbiCoder.encode(
+        ["address[]"],
+        [[authority3.address, authority2.address]],
+      );
+      expect(authorities).to.equal(expectedAuthorities);
+    });
+
+    it("should fail when authority3 try to approve withdraw", async () => {
+      const initiateWithdrawData =
+        enhancedMainBridgeV2.interface.encodeFunctionData("withdraw", [
+          redeemId,
+          sideTokenId,
+          beneficiary,
+          amountSt,
+          txHash,
+        ]);
+
+      try {
+        const tx = await proxy.connect(authority3).fallback({
+          data: initiateWithdrawData,
+        });
+        await tx.wait();
+      } catch (error: any) {
+        expect(error.message).to.contain("not possible authority");
+      }
+    });
+
+    it("should success when authority2 try to approve withdraw", async () => {
+      const initiateWithdrawData =
+        enhancedMainBridgeV2.interface.encodeFunctionData("withdraw", [
+          redeemId,
+          sideTokenId,
+          beneficiary,
+          amountSt,
+          txHash,
+        ]);
+
+      const tx = await proxy.connect(authority2).fallback({
+        data: initiateWithdrawData,
+      });
+      await tx.wait();
+      // mainToken() is not implemented in EnhancedMainBridgeV2!!
+    });
   });
 });

@@ -121,6 +121,12 @@ export class EnhancedProxyEventMatcher {
       case "MainTokenWithdrawSigned": {
         return "0x5b34e54d955185b4e39d529b203ed8338de517296675b59cc70b0708ce47928f";
       }
+      case "ChangeAuthorityRequest": {
+        return "0xa533b2f3c5941bb9fe1800d5cd57b346e00d3a7b7e7942e9af6df2ab823c8d0b";
+      }
+      case "AuthorityChanged": {
+        return "0xd3fe76d0d53ab5474e53fb84a8a0c28ec990c20e365ff459df1f39925f398c4d";
+      }
       default: {
         throw new Error(`Event ${event} not found`);
       }
