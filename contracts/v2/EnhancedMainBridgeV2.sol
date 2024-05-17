@@ -2,13 +2,13 @@
 
 pragma solidity ^0.8.0;
 
-import "./EIP20Standard.sol";
-import "./HashUtils.sol";
+import "../EIP20Standard.sol";
+import "../HashUtils.sol";
 import "@openzeppelin/contracts/proxy/utils/UUPSUpgradeable.sol";
-import {OwnableUpgradeable} from "./proxy/OwnableUpgradeable.sol";
-import {EnhancedMainBridgeUpgradeable} from "./proxy/EnhancedMainBridgeUpgradeable.sol";
+import {OwnableUpgradeable} from "../proxy/OwnableUpgradeable.sol";
+import {EnhancedMainBridgeUpgradeable} from "../proxy/EnhancedMainBridgeUpgradeable.sol";
 
-contract EnhancedMainBridge is EnhancedMainBridgeUpgradeable, OwnableUpgradeable, UUPSUpgradeable {
+contract EnhancedMainBridgeV2 is EnhancedMainBridgeUpgradeable, OwnableUpgradeable, UUPSUpgradeable {
     uint8 constant TOKEN_DECIMALS = 18;
 
     /*
@@ -156,11 +156,16 @@ contract EnhancedMainBridge is EnhancedMainBridgeUpgradeable, OwnableUpgradeable
         emit ChangeAuthorityRequest(changeId, _oldAuthority, _newAuthority, changeAuthorityCount);
     }
 
-    function changeAuthority(bytes32 _changeId, address _oldAuthority, address _newAuthority)
-    external onlyAuthority {
+    function changeAuthority(
+        bytes32 _changeId,
+        address _oldAuthority,
+        address _newAuthority
+    ) external onlyAuthority {
         require(_oldAuthority != address(0));
         require(_newAuthority != address(0));
         require(!changeAuthoritySignedHistory[_changeId][msg.sender]); // allow once for one authority
+        require(_changeId ==
+        keccak256(abi.encodePacked(_oldAuthority, _newAuthority)), "invalid changeId");
 
         changeAuthoritySignedHistory[_changeId][msg.sender] = true;
         changeAuthoritySignedCount[_changeId]++;
@@ -253,12 +258,16 @@ contract EnhancedMainBridge is EnhancedMainBridgeUpgradeable, OwnableUpgradeable
         emit Deposited(_sideTokenId, depositId, depositCount, _beneficiary, _amount, amountST);
     }
 
-    function withdraw(bytes32 _redeemId,
+    function withdraw(
+        bytes32 _redeemId,
         bytes32 _sideTokenId,
         address _beneficiary,
         uint256 _amountST,
-        bytes32 txHash) onlyAuthority() external {
+        bytes32 txHash
+    ) onlyAuthority() external {
         require(_beneficiary != address(0));
+        require(_redeemId ==
+            keccak256(abi.encodePacked(_sideTokenId, _beneficiary, _amountST, txHash)), "invalid redeemId");
 
         WithdrawInfo storage withdrawInfo = withdraws[_redeemId];
 
