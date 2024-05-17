@@ -35,6 +35,7 @@ contract EnhancedMainBridgeV2 is EnhancedMainBridgeUpgradeable, OwnableUpgradeab
     uint256 requiredSignatures;
 
     address[] private authorityList;
+    mapping(bytes32 => mapping(address => bool)) private changeAuthorityPossibleAuthorities;
     // storage layout region end
 
     event Deposited(bytes32 indexed sideTokenId, bytes32 indexed depositId, uint256 depositCount, address beneficiary, uint256 amountMT, uint256 amountST);
@@ -162,6 +163,10 @@ contract EnhancedMainBridgeV2 is EnhancedMainBridgeUpgradeable, OwnableUpgradeab
         changeAuthoritySignedCount[changeId] = 0;
         changeAuthorityCount++;
 
+        for (uint i = 0; i < authorityList.length; i++) {
+            changeAuthorityPossibleAuthorities[changeId][authorityList[i]] = true;
+        }
+
         emit ChangeAuthorityRequest(changeId, _oldAuthority, _newAuthority, changeAuthorityCount);
     }
 
@@ -173,6 +178,7 @@ contract EnhancedMainBridgeV2 is EnhancedMainBridgeUpgradeable, OwnableUpgradeab
         require(_oldAuthority != address(0));
         require(_newAuthority != address(0));
         require(!changeAuthoritySignedHistory[_changeId][msg.sender]); // allow once for one authority
+        require(changeAuthorityPossibleAuthorities[_changeId][msg.sender]); // check if authority is possible to sign
         require(_changeId ==
             keccak256(abi.encodePacked(_oldAuthority, _newAuthority)), "invalid changeId");
 
@@ -180,11 +186,22 @@ contract EnhancedMainBridgeV2 is EnhancedMainBridgeUpgradeable, OwnableUpgradeab
         changeAuthoritySignedCount[_changeId]++;
 
         if (authorities[_newAuthority] == false
-            && changeAuthoritySignedCount[_changeId] >= requiredSignatures) {
+            && changeAuthoritySignedCount[_changeId] >= requiredSignatures
+        ) {
             authorities[_oldAuthority] = false;
             authorities[_newAuthority] = true;
+            _updateAuthority(_oldAuthority, _newAuthority);
 
             emit AuthorityChanged(_oldAuthority, _newAuthority, _changeId, changeAuthoritySignedCount[_changeId]);
+        }
+    }
+
+    function _updateAuthority(address _oldAuthority, address _newAuthority) internal {
+        for (uint i = 0; i < authorityList.length; i++) {
+            if (authorityList[i] == _oldAuthority) {
+                authorityList[i] = _newAuthority;
+                break;
+            }
         }
     }
 
@@ -203,6 +220,7 @@ contract EnhancedMainBridgeV2 is EnhancedMainBridgeUpgradeable, OwnableUpgradeab
 
         for (uint8 i = 0; i < _authorities.length; i++) {
             authorities[_authorities[i]] = true;
+            authorityList.push(_authorities[i]);
         }
 
         emit SideBridgeRegistered(_sideBridge, _authorities);
