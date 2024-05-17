@@ -65,40 +65,71 @@ describe("EnhancedMainBridgeUpgrade", () => {
     );
   });
 
-  it("EnhancedMainBridgeV2로 업그레이드 한다, 기존의 초기화 정보를 확인한다", async () => {
-    const EnhancedMainBridgeV2 = await ethers.getContractFactory(
-      "EnhancedMainBridgeV2",
-    );
-    enhancedMainBridgeV2 = await EnhancedMainBridgeV2.deploy();
-    await enhancedMainBridgeV2.deployed();
+  describe("upgrade", () => {
+    const authority1 = ethers.Wallet.createRandom().address;
+    const authority2 = ethers.Wallet.createRandom().address;
+    before(async () => {
+      const registerSideBridge = enhancedMainBridge.interface.encodeFunctionData(
+          "registerSideBridge",
+          [
+            ethers.Wallet.createRandom().address,
+            2,
+            [authority1, authority2]
+          ]
+      );
 
-    const initializeV2Data = enhancedMainBridgeV2.interface.encodeFunctionData("initializeV2");
-    const upgradeAndCallData = enhancedMainBridge.interface.encodeFunctionData(
-      "upgradeToAndCall",
-      [enhancedMainBridgeV2.address, initializeV2Data],
-    );
-    const txResponse = await proxy.fallback({
-      data: upgradeAndCallData,
+      const txResponse = await proxy.fallback({
+          data: registerSideBridge,
+      });
+      await txResponse.wait();
+    })
+    it("EnhancedMainBridgeV2로 업그레이드 한다, 기존의 초기화 정보를 확인한다", async () => {
+      const EnhancedMainBridgeV2 = await ethers.getContractFactory(
+          "EnhancedMainBridgeV2",
+      );
+      enhancedMainBridgeV2 = await EnhancedMainBridgeV2.deploy();
+      await enhancedMainBridgeV2.deployed();
+
+      const initializeV2Data = enhancedMainBridgeV2.interface.encodeFunctionData("initializeV2",
+          [
+              [authority1, authority2]
+          ]
+      );
+      const upgradeAndCallData = enhancedMainBridge.interface.encodeFunctionData(
+          "upgradeToAndCall",
+          [enhancedMainBridgeV2.address, initializeV2Data],
+      );
+      const txResponse = await proxy.fallback({
+        data: upgradeAndCallData,
+      });
+      await txResponse.wait();
+
+      // then
+      const chainIdData =
+          enhancedMainBridgeV2.interface.encodeFunctionData("chainId");
+      const ownerData = enhancedMainBridgeV2.interface.encodeFunctionData("owner");
+      const authorityListData = enhancedMainBridgeV2.interface.encodeFunctionData("getAuthorities");
+
+      const chainId = await ethers.provider.call({
+        to: proxy.address,
+        data: chainIdData,
+      });
+      const owner = await ethers.provider.call({
+        to: proxy.address,
+        data: ownerData,
+      });
+      const authorityList = await ethers.provider.call({
+        to: proxy.address,
+        data: authorityListData,
+      });
+
+      expect(parseInt(chainId)).to.equal(31337);
+      expect(ethers.utils.hexValue(owner)).to.equal(
+          contractOwner.address.toLowerCase(),
+      );
+      expect(authorityList).to.equal(
+          ethers.utils.defaultAbiCoder.encode(["address[]"], [[authority1, authority2]])
+      );
     });
-    await txResponse.wait();
-
-    // then
-    const chainIdData =
-      enhancedMainBridgeV2.interface.encodeFunctionData("chainId");
-    const ownerData = enhancedMainBridgeV2.interface.encodeFunctionData("owner");
-
-    const chainId = await ethers.provider.call({
-      to: proxy.address,
-      data: chainIdData,
-    });
-    const owner = await ethers.provider.call({
-      to: proxy.address,
-      data: ownerData,
-    });
-
-    expect(parseInt(chainId)).to.equal(31337);
-    expect(ethers.utils.hexValue(owner)).to.equal(
-      contractOwner.address.toLowerCase(),
-    );
-  });
+  })
 });

@@ -33,6 +33,8 @@ contract EnhancedMainBridgeV2 is EnhancedMainBridgeUpgradeable, OwnableUpgradeab
 
     uint256 depositCount;
     uint256 requiredSignatures;
+
+    address[] private authorityList;
     // storage layout region end
 
     event Deposited(bytes32 indexed sideTokenId, bytes32 indexed depositId, uint256 depositCount, address beneficiary, uint256 amountMT, uint256 amountST);
@@ -94,7 +96,11 @@ contract EnhancedMainBridgeV2 is EnhancedMainBridgeUpgradeable, OwnableUpgradeab
         __EnhancedMainBridge_init(chainId, token, mainAdmin);
     }
 
-    function initializeV2() reinitializer(2) public {
+    function initializeV2(address[] memory _authorityList) reinitializer(2) public {
+        for (uint i = 0; i < _authorityList.length; i++) {
+            require(authorities[_authorityList[i]] == true);
+            authorityList.push(_authorityList[i]);
+        }
     }
 
     modifier onlyAuthority() {
@@ -168,7 +174,7 @@ contract EnhancedMainBridgeV2 is EnhancedMainBridgeUpgradeable, OwnableUpgradeab
         require(_newAuthority != address(0));
         require(!changeAuthoritySignedHistory[_changeId][msg.sender]); // allow once for one authority
         require(_changeId ==
-        keccak256(abi.encodePacked(_oldAuthority, _newAuthority)), "invalid changeId");
+            keccak256(abi.encodePacked(_oldAuthority, _newAuthority)), "invalid changeId");
 
         changeAuthoritySignedHistory[_changeId][msg.sender] = true;
         changeAuthoritySignedCount[_changeId]++;
@@ -369,6 +375,10 @@ contract EnhancedMainBridgeV2 is EnhancedMainBridgeUpgradeable, OwnableUpgradeab
             out |= bytes32(b[offset + i] & 0xFF) >> (i * 8);
         }
         return out;
+    }
+
+    function getAuthorities() public view onlyOwner returns  (address[] memory) {
+        return authorityList;
     }
 
     function _authorizeUpgrade(address newImplementation) internal virtual override onlyOwner {
