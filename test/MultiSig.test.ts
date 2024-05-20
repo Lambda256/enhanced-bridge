@@ -1,4 +1,4 @@
-import { MultiSig } from "../typechain-types";
+import { MultiSig, MultiSigTxTest } from "../typechain-types";
 import { ethers } from "hardhat";
 import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
 import { expect } from "chai";
@@ -12,6 +12,15 @@ function createUpdateId(
   const packed = ethers.utils.solidityPack(
     ["address", "address", "uint256", "uint256"],
     [oldValidator, newValidator, threshold, changeValidatorCount],
+  );
+
+  return ethers.utils.keccak256(packed);
+}
+
+function createTxId(to: string, data: string, count: number) {
+  const packed = ethers.utils.solidityPack(
+    ["address", "bytes", "uint256"],
+    [to, data, count],
   );
 
   return ethers.utils.keccak256(packed);
@@ -140,5 +149,53 @@ describe("MultiSig", () => {
 
     const count = await multiSig.requiredSignatureCount();
     expect(count.toNumber()).to.equal(2);
+  });
+
+  describe("Transaction", () => {
+    let multiSigTxtTest: MultiSigTxTest;
+    before(async () => {
+      const MultiSigTxTest = await ethers.getContractFactory("MultiSigTxTest");
+      multiSigTxtTest = await MultiSigTxTest.deploy();
+      await multiSigTxtTest.deployed();
+    });
+
+    it("submit transaction and check correct transaction status", async () => {
+      const testData = multiSigTxtTest.interface.encodeFunctionData("test");
+      const tx = await multiSig
+        .connect(validator4)
+        .submitTransaction(multiSigTxtTest.address, testData);
+      await tx.wait();
+
+      const txId = createTxId(multiSigTxtTest.address, testData, 0);
+
+      const status = await multiSig.getTransactionStatus(txId);
+
+      expect(status[0]).to.equal(false);
+      expect(status[1].toNumber()).to.equal(0);
+    });
+
+    it("execute transaction and check correct transaction status", async () => {
+      const testData = multiSigTxtTest.interface.encodeFunctionData("test");
+      const txId = createTxId(multiSigTxtTest.address, testData, 0);
+
+      const confirmTx1 = await multiSig
+        .connect(validator2)
+        .confirmTransaction(txId);
+      await confirmTx1.wait();
+      const statusBefore = await multiSig.getTransactionStatus(txId);
+      expect(statusBefore[0]).to.equal(false);
+      expect(statusBefore[1].toNumber()).to.equal(1);
+
+      const confirmTx2 = await multiSig
+        .connect(validator4)
+        .confirmTransaction(txId);
+      await confirmTx2.wait();
+      const status = await multiSig.getTransactionStatus(txId);
+
+      await expect(confirmTx2).to.emit(multiSigTxtTest, "Success");
+      await expect(confirmTx2).to.emit(multiSig, "ExecuteTransaction");
+      expect(status[0]).to.equal(true);
+      expect(status[1].toNumber()).to.equal(2);
+    });
   });
 });

@@ -213,6 +213,11 @@ contract MultiSig {
         return (updateValidator.executed, updateValidator.signedCount);
     }
 
+    function getTransactionStatus(bytes32 txId) public view returns (bool, uint256) {
+        Transaction storage transaction = transactions[txId];
+        return (transaction.executed, transaction.signedCount);
+    }
+
     function _updateValidator(
         address oldValidator,
         address newValidator,
