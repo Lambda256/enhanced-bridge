@@ -65,14 +65,14 @@ describe("MultiSig", () => {
     await confirm1.wait();
     const updateStatusBefore =
       await multiSig.getUpdateValidatorStatus(updateId);
-    expect(updateStatusBefore).to.equal(false);
+    expect(updateStatusBefore[0]).to.equal(false);
 
     const confirm2 = await multiSig
       .connect(validator2)
       .confirmChangeValidatorRequest(updateId);
     await confirm2.wait();
     const updateStatus = await multiSig.getUpdateValidatorStatus(updateId);
-    expect(updateStatus).to.equal(true);
+    expect(updateStatus[0]).to.equal(true);
 
     const count = await multiSig.requiredSignatureCount();
     expect(count.toNumber()).to.equal(2);
@@ -95,14 +95,14 @@ describe("MultiSig", () => {
     await confirm1.wait();
     const updateStatusBefore =
       await multiSig.getUpdateValidatorStatus(updateId);
-    expect(updateStatusBefore).to.equal(false);
+    expect(updateStatusBefore[0]).to.equal(false);
 
     const confirm2 = await multiSig
       .connect(validator1)
       .confirmChangeValidatorRequest(updateId);
     await confirm2.wait();
     const updateStatus = await multiSig.getUpdateValidatorStatus(updateId);
-    expect(updateStatus).to.equal(true);
+    expect(updateStatus[0]).to.equal(true);
 
     const count = await multiSig.requiredSignatureCount();
     expect(count.toNumber()).to.equal(2);
@@ -129,14 +129,14 @@ describe("MultiSig", () => {
     await confirm1.wait();
     const updateStatusBefore =
       await multiSig.getUpdateValidatorStatus(updateId);
-    expect(updateStatusBefore).to.equal(false);
+    expect(updateStatusBefore[0]).to.equal(false);
 
     const confirm2 = await multiSig
       .connect(validator1)
       .confirmChangeValidatorRequest(updateId);
     await confirm2.wait();
     const updateStatus = await multiSig.getUpdateValidatorStatus(updateId);
-    expect(updateStatus).to.equal(true);
+    expect(updateStatus[0]).to.equal(true);
 
     const count = await multiSig.requiredSignatureCount();
     expect(count.toNumber()).to.equal(2);

@@ -158,8 +158,9 @@ contract MultiSig {
         return validators;
     }
 
-    function getUpdateValidatorStatus(bytes32 updateId) public view returns (bool) {
-        return updateValidators[updateId].executed;
+    function getUpdateValidatorStatus(bytes32 updateId) public view returns (bool, uint256) {
+        UpdateValidator storage updateValidator = updateValidators[updateId];
+        return (updateValidator.executed, updateValidator.signedCount);
     }
 
     function _updateValidator(
