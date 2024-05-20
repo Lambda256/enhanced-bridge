@@ -14,10 +14,23 @@ contract MultiSig {
     event ExecuteChangeValidator(
         bytes32 indexed updateId
     );
+
+    event SubmitTransaction(
+        bytes32 indexed txId,
+        uint256 txCount
+    );
+
+    event SignTransaction(
+        bytes32 indexed txId,
+        uint256 signedCount
+    );
+
+    event ExecuteTransaction(
+        bytes32 indexed txId
     );
 
     struct Transaction {
-        address destination;
+        address to;
         uint value;
         bytes data;
         bool executed;
@@ -47,6 +60,8 @@ contract MultiSig {
     bool private changeValidatorFlag = false;
 
     uint256 public changeValidatorCount = 0;
+    uint256 public txCount = 0;
+
     constructor(
         address[] memory _validators,
         uint256 _threshold
@@ -149,9 +164,45 @@ contract MultiSig {
         }
     }
 
-    function submitTransaction() external onlyValidator {}
+    function submitTransaction(
+        address to,
+        bytes memory data
+    ) external payable onlyValidator {
+        bytes32 txId = keccak256(abi.encodePacked(to, data, txCount));
+        Transaction storage transaction = transactions[txId];
 
-    function confirmTransaction() external onlyValidator {}
+        transaction.to = to;
+        transaction.value = msg.value;
+        transaction.data = data;
+        for (uint i = 0; i < validators.length; i++) {
+            transaction.possibleValidators[validators[i]] = true;
+        }
+
+        emit SubmitTransaction(txId, txCount);
+
+        txCount++;
+    }
+
+    function confirmTransaction(bytes32 txId) external onlyValidator {
+        Transaction storage transaction = transactions[txId];
+
+        require(!transaction.executed, "MultiSig: transaction is already executed");
+        require(transaction.possibleValidators[msg.sender], "MultiSig: caller is not a possible validator");
+        require(!transaction.isConfirmed[msg.sender], "MultiSig: caller has already confirmed");
+
+        transaction.isConfirmed[msg.sender] = true;
+        transaction.signedCount++;
+
+        emit SignTransaction(txId, transaction.signedCount);
+
+        if (transaction.signedCount >= requiredSignatureCount) {
+            transaction.executed = true;
+            (bool success, ) = transaction.to.call{value: transaction.value}(transaction.data);
+            require(success, "MultiSig: transaction execution failed");
+
+            emit ExecuteTransaction(txId);
+        }
+    }
 
     function getValidators() public view returns (address[] memory) {
         return validators;
