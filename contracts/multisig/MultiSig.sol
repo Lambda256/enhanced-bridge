@@ -11,9 +11,9 @@ contract MultiSig {
         bytes32 indexed updateId,
         uint256 signedCount
     );
-    event ValidatorChanged(
-        bytes32 indexed updateId,
-        uint256 changeValidatorCount
+    event ExecuteChangeValidator(
+        bytes32 indexed updateId
+    );
     );
 
     struct Transaction {
@@ -44,9 +44,9 @@ contract MultiSig {
     address[] public validators;
     mapping(address => bool) public isValidator;
     uint256 public requiredSignatureCount;
-    uint256 public changeValidatorCount = 0;
     bool private changeValidatorFlag = false;
 
+    uint256 public changeValidatorCount = 0;
     constructor(
         address[] memory _validators,
         uint256 _threshold
@@ -146,7 +146,7 @@ contract MultiSig {
             requiredSignatureCount = updateValidator.threshold;
             updateValidator.executed = true;
 
-            emit ValidatorChanged(updateId, changeValidatorCount);
+            emit ExecuteChangeValidator(updateId);
         }
     }
 
