@@ -127,6 +127,9 @@ export class EnhancedProxyEventMatcher {
       case "AuthorityChanged": {
         return "0xd3fe76d0d53ab5474e53fb84a8a0c28ec990c20e365ff459df1f39925f398c4d";
       }
+      case "MainTokenWithdrawed": {
+        return "0x5e1b6b8470919689fba13c03875e18892d792325b71a527c6e7924d840747ce6";
+      }
       default: {
         throw new Error(`Event ${event} not found`);
       }

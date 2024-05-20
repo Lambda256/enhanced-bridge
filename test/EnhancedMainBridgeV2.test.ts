@@ -4,6 +4,7 @@ import {
   EnhancedERC1967Proxy,
   EnhancedMainBridge,
   EnhancedMainBridgeV2,
+  TestToken,
 } from "../typechain-types";
 import { EnhancedProxyEventMatcher } from "./test.helper";
 import { expect } from "chai";
@@ -12,7 +13,7 @@ describe("EnhancedMainBridgeV2", () => {
   let proxy: EnhancedERC1967Proxy;
   let enhancedMainBridge: EnhancedMainBridge;
   let enhancedMainBridgeV2: EnhancedMainBridgeV2;
-  let contractOwner: SignerWithAddress;
+  let testToken: TestToken;
   let authority1: SignerWithAddress;
   let authority2: SignerWithAddress;
   let authority3: SignerWithAddress;
@@ -21,10 +22,19 @@ describe("EnhancedMainBridgeV2", () => {
   // upgrade contract
   before(async () => {
     const signers = await ethers.getSigners();
-    contractOwner = signers[0];
     authority1 = signers[1];
     authority2 = signers[2];
     authority3 = signers[3];
+
+    const TestToken = await ethers.getContractFactory("TestToken");
+    testToken = await TestToken.deploy(
+      "Test Token",
+      "TTK",
+      18,
+      1000000,
+      1000000,
+    );
+    await testToken.deployed();
 
     const EnhancedMainBridge =
       await ethers.getContractFactory("EnhancedMainBridge");
@@ -36,7 +46,7 @@ describe("EnhancedMainBridgeV2", () => {
     );
     const data = enhancedMainBridge.interface.encodeFunctionData("initialize", [
       31337,
-      ethers.Wallet.createRandom().address,
+      testToken.address,
       ethers.Wallet.createRandom().address,
     ]);
 
@@ -125,15 +135,20 @@ describe("EnhancedMainBridgeV2", () => {
       });
 
       await txResponse.wait();
+      // register side token end
 
+      // compute redeemId and send main token for withdraw
       const redeemIdPacked = ethers.utils.solidityPack(
         ["bytes32", "address", "uint256", "bytes32"],
         [sideTokenId, beneficiary, amountSt, txHash],
       );
       redeemId = ethers.utils.keccak256(redeemIdPacked);
+
+      const transferTx = await testToken.transfer(proxy.address, 1000000);
+      await transferTx.wait();
     });
 
-    it("initiate withdraw", async () => {
+    it("emits MainTokenWithdrawSigned event when initiate withdraw ", async () => {
       const initiateWithdrawData =
         enhancedMainBridgeV2.interface.encodeFunctionData("withdraw", [
           redeemId,
@@ -151,7 +166,7 @@ describe("EnhancedMainBridgeV2", () => {
       EnhancedProxyEventMatcher.emit(receipt, "MainTokenWithdrawSigned");
     });
 
-    it("change authority request", async () => {
+    it("emits ChangeAuthorityRequest event when change authority request", async () => {
       const changeAuthorityRequest =
         enhancedMainBridgeV2.interface.encodeFunctionData(
           "changeAuthorityRequest",
@@ -166,7 +181,7 @@ describe("EnhancedMainBridgeV2", () => {
       EnhancedProxyEventMatcher.emit(receipt, "ChangeAuthorityRequest");
     });
 
-    it("change authority", async () => {
+    it("emits AuthorityChanged event when authority changed", async () => {
       const changeIdPacked = ethers.utils.solidityPack(
         ["address", "address", "uint256"],
         [authority1.address, authority3.address, 0],
@@ -195,7 +210,7 @@ describe("EnhancedMainBridgeV2", () => {
       EnhancedProxyEventMatcher.emit(receipt, "AuthorityChanged");
     });
 
-    it("check authority list", async () => {
+    it("should be equal to changed authority list", async () => {
       const authorityListData =
         enhancedMainBridgeV2.interface.encodeFunctionData("getAuthorities");
 
@@ -245,8 +260,10 @@ describe("EnhancedMainBridgeV2", () => {
       const tx = await proxy.connect(authority2).fallback({
         data: initiateWithdrawData,
       });
-      await tx.wait();
-      // mainToken() is not implemented in EnhancedMainBridgeV2!!
+      const receipt = await tx.wait();
+
+      EnhancedProxyEventMatcher.emit(receipt, "MainTokenWithdrawSigned");
+      EnhancedProxyEventMatcher.emit(receipt, "MainTokenWithdrawed");
     });
   });
 });
