@@ -142,7 +142,6 @@ contract MultiSig {
             }
 
             changeValidatorFlag = false;
-            changeValidatorCount++;
             requiredSignatureCount = updateValidator.threshold;
             updateValidator.executed = true;
 
@@ -178,6 +177,8 @@ contract MultiSig {
         }
 
         emit ChangeValidatorRequest(updateId, changeValidatorCount);
+
+        changeValidatorCount++;
     }
 
     function _addValidator(address validator) internal {
