@@ -2,6 +2,7 @@ import { MultiSig, MultiSigTxTest } from "../typechain-types";
 import { ethers } from "hardhat";
 import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
 import { expect } from "chai";
+import { createTxId } from "./test.helper";
 
 function createValidatorTxId(
   oldValidator: string,
@@ -12,15 +13,6 @@ function createValidatorTxId(
   const packed = ethers.utils.solidityPack(
     ["address", "address", "uint256", "uint256"],
     [oldValidator, newValidator, threshold, changeValidatorCount],
-  );
-
-  return ethers.utils.keccak256(packed);
-}
-
-function createTxId(to: string, data: string, count: number) {
-  const packed = ethers.utils.solidityPack(
-    ["address", "bytes", "uint256"],
-    [to, data, count],
   );
 
   return ethers.utils.keccak256(packed);

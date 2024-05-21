@@ -172,3 +172,12 @@ export class EnhancedProxyEventMatcher {
     return this;
   }
 }
+
+export function createTxId(to: string, data: string, count: number) {
+  const packed = ethers.utils.solidityPack(
+    ["address", "bytes", "uint256"],
+    [to, data, count],
+  );
+
+  return ethers.utils.keccak256(packed);
+}

@@ -29,6 +29,8 @@ contract MultiSig {
         bytes32 indexed txId
     );
 
+    error TransactionFail(bytes reason);
+
     struct Transaction {
         address to;
         uint value;
@@ -196,8 +198,10 @@ contract MultiSig {
 
         if (transaction.signedCount >= requiredSignatureCount) {
             transaction.executed = true;
-            (bool success, ) = transaction.to.call{value: transaction.value}(transaction.data);
-            require(success, "MultiSig: transaction execution failed");
+            (bool success, bytes memory data) = transaction.to.call{value: transaction.value}(transaction.data);
+            if (!success) {
+                revert TransactionFail(data);
+            }
 
             emit ExecuteTransaction(txId);
         }
