@@ -7,7 +7,7 @@ contract MultiSig {
         bytes32 indexed updateId,
         uint256 changeValidatorCount
     );
-    event ChangeValidatorSigned(
+    event ChangeValidatorApproved(
         bytes32 indexed updateId,
         uint256 signedCount
     );
@@ -20,7 +20,7 @@ contract MultiSig {
         uint256 txCount
     );
 
-    event SignTransaction(
+    event ApproveTransaction(
         bytes32 indexed txId,
         uint256 signedCount
     );
@@ -147,7 +147,7 @@ contract MultiSig {
         validatorTx.isConfirmed[msg.sender] = true;
         validatorTx.signedCount++;
 
-        emit ChangeValidatorSigned(txId, validatorTx.signedCount);
+        emit ChangeValidatorApproved(txId, validatorTx.signedCount);
 
         if (validatorTx.signedCount >= requiredSignatureCount) {
             if (validatorTx.oldValidator == address(0)) {
@@ -194,7 +194,7 @@ contract MultiSig {
         transaction.isConfirmed[msg.sender] = true;
         transaction.signedCount++;
 
-        emit SignTransaction(txId, transaction.signedCount);
+        emit ApproveTransaction(txId, transaction.signedCount);
 
         if (transaction.signedCount >= requiredSignatureCount) {
             transaction.executed = true;

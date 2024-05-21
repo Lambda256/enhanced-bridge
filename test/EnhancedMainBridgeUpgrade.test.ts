@@ -118,13 +118,13 @@ describe("EnhancedMainBridgeUpgrade", () => {
         const tx = await multiSig.connect(validator1).approveTransaction(txId);
         await tx.wait();
 
-        await expect(tx).to.emit(multiSig, "SignTransaction");
+        await expect(tx).to.emit(multiSig, "ApproveTransaction");
       });
 
       it("approve upgrade transaction by validator2 and executed", async () => {
         const txId = createTxId(proxy.address, upgradeToAndCallData, 1);
         const tx = await multiSig.connect(validator2).approveTransaction(txId);
-        const receipt = await tx.wait();
+        await tx.wait();
 
         await expect(tx).to.emit(multiSig, "ExecuteTransaction");
         await expect(tx).to.emit(proxy, "Upgraded");
