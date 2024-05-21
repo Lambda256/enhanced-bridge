@@ -178,9 +178,9 @@ contract MultiSig {
             transaction.possibleValidators[validators[i]] = true;
         }
 
-        emit SubmitTransaction(txId, txCount);
-
         txCount++;
+
+        emit SubmitTransaction(txId, txCount);
     }
 
     function confirmTransaction(bytes32 txId) external onlyValidator {
@@ -232,9 +232,9 @@ contract MultiSig {
             updateValidator.possibleValidators[validators[i]] = true;
         }
 
-        emit ChangeValidatorRequest(updateId, changeValidatorCount);
-
         changeValidatorCount++;
+
+        emit ChangeValidatorRequest(updateId, changeValidatorCount);
     }
 
     function _addValidator(address validator) internal {
