@@ -58,13 +58,13 @@ describe("MultiSig", () => {
   });
 
   it("add validator and check correct validator and required signature count", async () => {
-    const tx = await multiSig.addValidatorRequest(validator3.address, 2);
+    const tx = await multiSig.addValidatorRequest(validator3.address, 3);
     await tx.wait();
 
     const updateId = createUpdateId(
       ethers.constants.AddressZero,
       validator3.address,
-      2,
+      3,
       0,
     );
 
@@ -84,7 +84,7 @@ describe("MultiSig", () => {
     expect(updateStatus[0]).to.equal(true);
 
     const count = await multiSig.requiredSignatureCount();
-    expect(count.toNumber()).to.equal(2);
+    expect(count.toNumber()).to.equal(3);
   });
 
   it("remove validator and check correct validator and required signature count", async () => {
@@ -107,6 +107,12 @@ describe("MultiSig", () => {
       .connect(validator1)
       .approveChangeValidatorRequest(updateId);
     await confirm2.wait();
+
+    const confirm3 = await multiSig
+      .connect(validator2)
+      .approveChangeValidatorRequest(updateId);
+    await confirm3.wait();
+
     const updateStatus = await multiSig.getUpdateValidatorStatus(updateId);
     expect(updateStatus[0]).to.equal(true);
     const count = await multiSig.requiredSignatureCount();
