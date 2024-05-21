@@ -3,7 +3,7 @@ import { ethers } from "hardhat";
 import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
 import { expect } from "chai";
 
-function createUpdateId(
+function createValidatorTxId(
   oldValidator: string,
   newValidator: string,
   threshold: number,
@@ -61,11 +61,11 @@ describe("MultiSig", () => {
     const tx = await multiSig.addValidatorRequest(validator3.address, 3);
     await tx.wait();
 
-    const updateId = createUpdateId(
+    const updateId = createValidatorTxId(
       ethers.constants.AddressZero,
       validator3.address,
       3,
-      0,
+      1,
     );
 
     const confirm1 = await multiSig
@@ -91,11 +91,11 @@ describe("MultiSig", () => {
     const tx = await multiSig.deleteValidatorRequest(validator3.address, 2);
     await tx.wait();
 
-    const updateId = createUpdateId(
+    const updateId = createValidatorTxId(
       validator3.address,
       ethers.constants.AddressZero,
       2,
-      1,
+      2,
     );
 
     const confirm1 = await multiSig
@@ -127,11 +127,11 @@ describe("MultiSig", () => {
     );
     await tx.wait();
 
-    const updateId = createUpdateId(
+    const updateId = createValidatorTxId(
       validator1.address,
       validator4.address,
       2,
-      2,
+      3,
     );
 
     const confirm1 = await multiSig
@@ -168,7 +168,7 @@ describe("MultiSig", () => {
         .submitTransaction(multiSigTxtTest.address, testData);
       await tx.wait();
 
-      const txId = createTxId(multiSigTxtTest.address, testData, 0);
+      const txId = createTxId(multiSigTxtTest.address, testData, 1);
 
       const status = await multiSig.getTransactionStatus(txId);
 
@@ -178,7 +178,7 @@ describe("MultiSig", () => {
 
     it("execute transaction and check correct transaction status", async () => {
       const testData = multiSigTxtTest.interface.encodeFunctionData("test");
-      const txId = createTxId(multiSigTxtTest.address, testData, 0);
+      const txId = createTxId(multiSigTxtTest.address, testData, 1);
 
       const confirmTx1 = await multiSig
         .connect(validator2)

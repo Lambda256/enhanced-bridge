@@ -168,6 +168,7 @@ contract MultiSig {
         address to,
         bytes memory data
     ) external payable onlyValidator {
+        txCount++;
         bytes32 txId = keccak256(abi.encodePacked(to, data, txCount));
         Transaction storage transaction = transactions[txId];
 
@@ -177,8 +178,6 @@ contract MultiSig {
         for (uint i = 0; i < validators.length; i++) {
             transaction.possibleValidators[validators[i]] = true;
         }
-
-        txCount++;
 
         emit SubmitTransaction(txId, txCount);
     }
@@ -223,6 +222,7 @@ contract MultiSig {
         address newValidator,
         uint256 threshold
     ) internal {
+        changeValidatorCount++;
         bytes32 updateId = keccak256(abi.encodePacked(oldValidator, newValidator, threshold, changeValidatorCount));
         ValidatorTx storage validatorTx = validatorTxs[updateId];
         validatorTx.oldValidator = oldValidator;
@@ -231,8 +231,6 @@ contract MultiSig {
         for (uint i = 0; i < validators.length; i++) {
             validatorTx.possibleValidators[validators[i]] = true;
         }
-
-        changeValidatorCount++;
 
         emit ChangeValidatorRequest(updateId, changeValidatorCount);
     }
