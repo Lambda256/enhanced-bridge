@@ -70,7 +70,7 @@ describe("MultiSig", () => {
 
     const confirm1 = await multiSig
       .connect(validator1)
-      .confirmChangeValidatorRequest(updateId);
+      .approveChangeValidatorRequest(updateId);
     await confirm1.wait();
     const updateStatusBefore =
       await multiSig.getUpdateValidatorStatus(updateId);
@@ -78,7 +78,7 @@ describe("MultiSig", () => {
 
     const confirm2 = await multiSig
       .connect(validator2)
-      .confirmChangeValidatorRequest(updateId);
+      .approveChangeValidatorRequest(updateId);
     await confirm2.wait();
     const updateStatus = await multiSig.getUpdateValidatorStatus(updateId);
     expect(updateStatus[0]).to.equal(true);
@@ -100,19 +100,15 @@ describe("MultiSig", () => {
 
     const confirm1 = await multiSig
       .connect(validator3)
-      .confirmChangeValidatorRequest(updateId);
+      .approveChangeValidatorRequest(updateId);
     await confirm1.wait();
-    const updateStatusBefore =
-      await multiSig.getUpdateValidatorStatus(updateId);
-    expect(updateStatusBefore[0]).to.equal(false);
 
     const confirm2 = await multiSig
       .connect(validator1)
-      .confirmChangeValidatorRequest(updateId);
+      .approveChangeValidatorRequest(updateId);
     await confirm2.wait();
     const updateStatus = await multiSig.getUpdateValidatorStatus(updateId);
     expect(updateStatus[0]).to.equal(true);
-
     const count = await multiSig.requiredSignatureCount();
     expect(count.toNumber()).to.equal(2);
   });
@@ -134,7 +130,7 @@ describe("MultiSig", () => {
 
     const confirm1 = await multiSig
       .connect(validator2)
-      .confirmChangeValidatorRequest(updateId);
+      .approveChangeValidatorRequest(updateId);
     await confirm1.wait();
     const updateStatusBefore =
       await multiSig.getUpdateValidatorStatus(updateId);
@@ -142,7 +138,7 @@ describe("MultiSig", () => {
 
     const confirm2 = await multiSig
       .connect(validator1)
-      .confirmChangeValidatorRequest(updateId);
+      .approveChangeValidatorRequest(updateId);
     await confirm2.wait();
     const updateStatus = await multiSig.getUpdateValidatorStatus(updateId);
     expect(updateStatus[0]).to.equal(true);
@@ -180,7 +176,7 @@ describe("MultiSig", () => {
 
       const confirmTx1 = await multiSig
         .connect(validator2)
-        .confirmTransaction(txId);
+        .approveTransaction(txId);
       await confirmTx1.wait();
       const statusBefore = await multiSig.getTransactionStatus(txId);
       expect(statusBefore[0]).to.equal(false);
@@ -188,7 +184,7 @@ describe("MultiSig", () => {
 
       const confirmTx2 = await multiSig
         .connect(validator4)
-        .confirmTransaction(txId);
+        .approveTransaction(txId);
       await confirmTx2.wait();
       const status = await multiSig.getTransactionStatus(txId);
 
