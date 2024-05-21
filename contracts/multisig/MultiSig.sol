@@ -133,10 +133,10 @@ contract MultiSig {
     }
 
     function approveChangeValidatorRequest(
-        bytes32 updateId
+        bytes32 txId
     ) external onlyValidator {
         require(changeValidatorFlag, "MultiSig: change validator request is not in progress");
-        ValidatorTx storage validatorTx = validatorTxs[updateId];
+        ValidatorTx storage validatorTx = validatorTxs[txId];
 
         require(!validatorTx.executed, "MultiSig: change validator request is already executed");
         require(validatorTx.possibleValidators[msg.sender], "MultiSig: caller is not a possible validator");
@@ -145,7 +145,7 @@ contract MultiSig {
         validatorTx.isConfirmed[msg.sender] = true;
         validatorTx.signedCount++;
 
-        emit ChangeValidatorSigned(updateId, validatorTx.signedCount);
+        emit ChangeValidatorSigned(txId, validatorTx.signedCount);
 
         if (validatorTx.signedCount >= requiredSignatureCount) {
             if (validatorTx.oldValidator == address(0)) {
@@ -160,7 +160,7 @@ contract MultiSig {
             requiredSignatureCount = validatorTx.threshold;
             validatorTx.executed = true;
 
-            emit ExecuteChangeValidator(updateId);
+            emit ExecuteChangeValidator(txId);
         }
     }
 
@@ -207,8 +207,8 @@ contract MultiSig {
         return validators;
     }
 
-    function getUpdateValidatorStatus(bytes32 updateId) public view returns (bool, uint256) {
-        ValidatorTx storage validatorTx = validatorTxs[updateId];
+    function getUpdateValidatorStatus(bytes32 txId) public view returns (bool, uint256) {
+        ValidatorTx storage validatorTx = validatorTxs[txId];
         return (validatorTx.executed, validatorTx.signedCount);
     }
 
@@ -223,8 +223,8 @@ contract MultiSig {
         uint256 threshold
     ) internal {
         changeValidatorCount++;
-        bytes32 updateId = keccak256(abi.encodePacked(oldValidator, newValidator, threshold, changeValidatorCount));
-        ValidatorTx storage validatorTx = validatorTxs[updateId];
+        bytes32 validatorTxId = keccak256(abi.encodePacked(oldValidator, newValidator, threshold, changeValidatorCount));
+        ValidatorTx storage validatorTx = validatorTxs[validatorTxId];
         validatorTx.oldValidator = oldValidator;
         validatorTx.newValidator = newValidator;
         validatorTx.threshold = threshold;
@@ -232,7 +232,7 @@ contract MultiSig {
             validatorTx.possibleValidators[validators[i]] = true;
         }
 
-        emit ChangeValidatorRequest(updateId, changeValidatorCount);
+        emit ChangeValidatorRequest(validatorTxId, changeValidatorCount);
     }
 
     function _addValidator(address validator) internal {
