@@ -53,6 +53,7 @@ contract EnhancedMainBridgeV2 is EnhancedMainBridgeUpgradeable, OwnableUpgradeab
 
     event AuthorityChanged(address oldAuthority, address newAuthority, bytes32 changeId, uint8 changeAuthorityCount);
     event ChangeAuthorityRequest(bytes32 changeId, address oldAuthority, address newAuthority, uint256 changeCount);
+    event ChangeAuthorityRejected(bytes32 changeId);
 
     event MainBridgePaused(address from);
     event MainBridgeResumed(address from);
@@ -175,11 +176,29 @@ contract EnhancedMainBridgeV2 is EnhancedMainBridgeUpgradeable, OwnableUpgradeab
         emit ChangeAuthorityRequest(changeId, _oldAuthority, _newAuthority, changeAuthorityCount);
     }
 
+    /**
+      * if authorityChanging flag turns to false, it means that changeAuthority can no longer be executed
+      * if change authority is needed, new request needed to be submitted.
+      */
+    function rejectAuthorityRequest(
+        bytes32 _changeId,
+        address _oldAuthority,
+        address _newAuthority
+    ) external onlyOwner {
+        require(authorityChanging, "authority not changing");
+        require(_changeId == keccak256(abi.encodePacked(_oldAuthority, _newAuthority, changeAuthorityCount - 1)), "invalid changeId");
+
+        authorityChanging = false;
+
+        emit ChangeAuthorityRejected(_changeId);
+    }
+
     function changeAuthority(
         bytes32 _changeId,
         address _oldAuthority,
         address _newAuthority
     ) external onlyAuthority {
+        require(authorityChanging, "authority not changing");
         require(_oldAuthority != address(0));
         require(_newAuthority != address(0));
         require(!changeAuthoritySignedHistory[_changeId][msg.sender]); // allow once for one authority
