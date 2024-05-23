@@ -8,6 +8,12 @@ import "./scripts/deploy-transfer-all";
 const config: HardhatUserConfig = {
   solidity: {
     version: "0.8.7",
+    settings: {
+      optimizer: {
+        enabled: true,
+        runs: 999,
+      },
+    },
   },
   networks: {
     hardhat: {},
