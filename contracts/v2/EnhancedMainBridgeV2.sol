@@ -34,7 +34,9 @@ contract EnhancedMainBridgeV2 is EnhancedMainBridgeUpgradeable, OwnableUpgradeab
     uint256 depositCount;
     uint256 requiredSignatures;
 
+    address[] private authorityList;
     bool private authorityChanging = false;
+    mapping(bytes32 => mapping(address => bool)) private changeAuthorityPossibleAuthorities;
     // storage layout region end
 
     event Deposited(bytes32 indexed sideTokenId, bytes32 indexed depositId, uint256 depositCount, address beneficiary, uint256 amountMT, uint256 amountST);
@@ -73,6 +75,7 @@ contract EnhancedMainBridgeV2 is EnhancedMainBridgeUpgradeable, OwnableUpgradeab
         bool confirmed;
 
         mapping(address => bool) authoritySigned;
+        mapping(address => bool) possibleAuthorities;
     }
 
     struct WithdrawInfo {
@@ -85,6 +88,7 @@ contract EnhancedMainBridgeV2 is EnhancedMainBridgeUpgradeable, OwnableUpgradeab
         bool withdrawed;
 
         mapping(address => bool) authoritySigned;
+        mapping(address => bool) possibleAuthorities;
     }
 
     function initialize(
@@ -96,7 +100,11 @@ contract EnhancedMainBridgeV2 is EnhancedMainBridgeUpgradeable, OwnableUpgradeab
         __EnhancedMainBridge_init(chainId, token, mainAdmin);
     }
 
-    function initializeV2() reinitializer(2) public {
+    function initializeV2(address[] memory _authorityList) reinitializer(2) public {
+        for (uint i = 0; i < _authorityList.length; i++) {
+            require(authorities[_authorityList[i]] == true);
+            authorityList.push(_authorityList[i]);
+        }
     }
 
     modifier onlyAuthority() {
@@ -160,6 +168,10 @@ contract EnhancedMainBridgeV2 is EnhancedMainBridgeUpgradeable, OwnableUpgradeab
         changeAuthorityCount++;
         authorityChanging = true;
 
+        for (uint i = 0; i < authorityList.length; i++) {
+            changeAuthorityPossibleAuthorities[changeId][authorityList[i]] = true;
+        }
+
         emit ChangeAuthorityRequest(changeId, _oldAuthority, _newAuthority, changeAuthorityCount);
     }
 
@@ -170,20 +182,32 @@ contract EnhancedMainBridgeV2 is EnhancedMainBridgeUpgradeable, OwnableUpgradeab
     ) external onlyAuthority {
         require(_oldAuthority != address(0));
         require(_newAuthority != address(0));
+        require(!changeAuthoritySignedHistory[_changeId][msg.sender]); // allow once for one authority
+        require(changeAuthorityPossibleAuthorities[_changeId][msg.sender], "not possible authority"); // check if authority is possible to sign
         require(_changeId ==
             keccak256(abi.encodePacked(_oldAuthority, _newAuthority, changeAuthorityCount - 1)), "invalid changeId");
-        require(!changeAuthoritySignedHistory[_changeId][msg.sender]); // allow once for one authority
 
         changeAuthoritySignedHistory[_changeId][msg.sender] = true;
         changeAuthoritySignedCount[_changeId]++;
 
         if (authorities[_newAuthority] == false
-            && changeAuthoritySignedCount[_changeId] >= requiredSignatures) {
+            && changeAuthoritySignedCount[_changeId] >= requiredSignatures
+        ) {
             authorities[_oldAuthority] = false;
             authorities[_newAuthority] = true;
+            _updateAuthority(_oldAuthority, _newAuthority);
             authorityChanging = false;
 
             emit AuthorityChanged(_oldAuthority, _newAuthority, _changeId, changeAuthoritySignedCount[_changeId]);
+        }
+    }
+
+    function _updateAuthority(address _oldAuthority, address _newAuthority) internal {
+        for (uint i = 0; i < authorityList.length; i++) {
+            if (authorityList[i] == _oldAuthority) {
+                authorityList[i] = _newAuthority;
+                break;
+            }
         }
     }
 
@@ -202,6 +226,7 @@ contract EnhancedMainBridgeV2 is EnhancedMainBridgeUpgradeable, OwnableUpgradeab
 
         for (uint8 i = 0; i < _authorities.length; i++) {
             authorities[_authorities[i]] = true;
+            authorityList.push(_authorities[i]);
         }
 
         emit SideBridgeRegistered(_sideBridge, _authorities);
@@ -263,6 +288,10 @@ contract EnhancedMainBridgeV2 is EnhancedMainBridgeUpgradeable, OwnableUpgradeab
         depositInfo.confirmed = false;
         depositInfo.confirmedCount = 0;
 
+        for (uint i = 0; i < authorityList.length; i++) {
+            depositInfo.possibleAuthorities[authorityList[i]] = true;
+        }
+
         emit Deposited(_sideTokenId, depositId, depositCount, _beneficiary, _amount, amountST);
     }
 
@@ -295,10 +324,13 @@ contract EnhancedMainBridgeV2 is EnhancedMainBridgeUpgradeable, OwnableUpgradeab
             withdrawInfo.beneficiary = _beneficiary;
             withdrawInfo.amountMT = amountMT;
             withdrawInfo.amountST = _amountST;
-
             withdrawInfo.withdrawed = false;
+            for (uint i = 0; i < authorityList.length; i++) {
+                withdrawInfo.possibleAuthorities[authorityList[i]] = true;
+            }
         }
 
+        require(withdrawInfo.possibleAuthorities[msg.sender], "not possible authority");
         require(withdrawInfo.beneficiary == _beneficiary);
 
         if (withdrawInfo.authoritySigned[msg.sender] == false) {
@@ -318,6 +350,8 @@ contract EnhancedMainBridgeV2 is EnhancedMainBridgeUpgradeable, OwnableUpgradeab
 
     function confirmDeposit(bytes32 depositId) external onlyAuthority() {
         DepositInfo storage depositInfo = deposits[depositId];
+        require(depositInfo.possibleAuthorities[msg.sender], "not possible authority");
+
         if (depositInfo.authoritySigned[msg.sender]) {
             return;
         }
@@ -374,6 +408,10 @@ contract EnhancedMainBridgeV2 is EnhancedMainBridgeUpgradeable, OwnableUpgradeab
             out |= bytes32(b[offset + i] & 0xFF) >> (i * 8);
         }
         return out;
+    }
+
+    function getAuthorities() public view onlyOwner returns  (address[] memory) {
+        return authorityList;
     }
 
     function _authorizeUpgrade(address newImplementation) internal virtual override onlyOwner {
