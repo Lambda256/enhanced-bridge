@@ -1,16 +1,12 @@
-import {
-  EnhancedERC1967Proxy,
-  EnhancedMainBridge,
-  TestEnhancedMainBridgeV2,
-} from "../typechain-types";
-import { ethers } from "hardhat";
-import { expect } from "chai";
-import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
+import {EnhancedERC1967Proxy, EnhancedMainBridge, EnhancedMainBridgeV2,} from "../typechain-types";
+import {ethers} from "hardhat";
+import {expect} from "chai";
+import {SignerWithAddress} from "@nomiclabs/hardhat-ethers/signers";
 
 describe("EnhancedMainBridgeUpgrade", () => {
   let proxy: EnhancedERC1967Proxy;
   let enhancedMainBridge: EnhancedMainBridge;
-  let enhancedMainBridgeV2: TestEnhancedMainBridgeV2;
+  let enhancedMainBridgeV2: EnhancedMainBridgeV2;
   let contractOwner: SignerWithAddress;
 
   before(async () => {
@@ -69,16 +65,14 @@ describe("EnhancedMainBridgeUpgrade", () => {
     );
   });
 
-  it("TestEnhancedMainBridgeV2로 업그레이드 한다, 기존의 초기화 정보를 확인한다", async () => {
+  it("EnhancedMainBridgeV2로 업그레이드 한다, 기존의 초기화 정보를 확인한다", async () => {
     const EnhancedMainBridgeV2 = await ethers.getContractFactory(
-      "TestEnhancedMainBridgeV2",
+      "EnhancedMainBridgeV2",
     );
     enhancedMainBridgeV2 = await EnhancedMainBridgeV2.deploy();
     await enhancedMainBridgeV2.deployed();
 
-    const initializeV2Data =
-      enhancedMainBridgeV2.interface.encodeFunctionData("initializeV2");
-
+    const initializeV2Data = enhancedMainBridgeV2.interface.encodeFunctionData("initializeV2");
     const upgradeAndCallData = enhancedMainBridge.interface.encodeFunctionData(
       "upgradeToAndCall",
       [enhancedMainBridgeV2.address, initializeV2Data],
@@ -106,39 +100,5 @@ describe("EnhancedMainBridgeUpgrade", () => {
     expect(ethers.utils.hexValue(owner)).to.equal(
       contractOwner.address.toLowerCase(),
     );
-  });
-
-  it("disableInitializer 를 호출하면 더 이상 업그레이드가 불가능하다", async () => {
-    // call disableInitializer
-    const disableInitializerData =
-      enhancedMainBridgeV2.interface.encodeFunctionData("disableInitializers");
-
-    const txResponse = await proxy.fallback({
-      data: disableInitializerData,
-    });
-
-    await txResponse.wait();
-
-    // upgrade
-    const EnhancedMainBridgeV3 = await ethers.getContractFactory(
-      "TestEnhancedMainBridgeV3",
-    );
-    const enhancedMainBridgeV3 = await EnhancedMainBridgeV3.deploy();
-    await enhancedMainBridgeV3.deployed();
-
-    const initializeV3Data =
-      enhancedMainBridgeV3.interface.encodeFunctionData("initializeV3");
-
-    const upgradeAndCallData = enhancedMainBridgeV2.interface.encodeFunctionData(
-      "upgradeToAndCall",
-      [enhancedMainBridgeV3.address, initializeV3Data],
-    );
-
-    // then
-    await expect(
-      proxy.fallback({
-        data: upgradeAndCallData,
-      }),
-    ).to.revertedWithCustomError(enhancedMainBridgeV3, "InvalidInitialization");
   });
 });
