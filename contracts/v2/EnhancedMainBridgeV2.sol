@@ -37,6 +37,8 @@ contract EnhancedMainBridgeV2 is EnhancedMainBridgeUpgradeable, OwnableUpgradeab
     address[] private authorityList;
     bool private authorityChanging = false;
     mapping(bytes32 => mapping(address => bool)) private changeAuthorityPossibleAuthorities;
+
+    mapping(address => bool) public isApprovedToken;
     // storage layout region end
 
     event Deposited(bytes32 indexed sideTokenId, bytes32 indexed depositId, uint256 depositCount, address beneficiary, uint256 amountMT, uint256 amountST);
@@ -105,6 +107,8 @@ contract EnhancedMainBridgeV2 is EnhancedMainBridgeUpgradeable, OwnableUpgradeab
             require(authorities[_authorityList[i]] == true);
             authorityList.push(_authorityList[i]);
         }
+
+        isApprovedToken[address(mainToken())] = true;
     }
 
     modifier onlyAuthority() {
@@ -152,6 +156,10 @@ contract EnhancedMainBridgeV2 is EnhancedMainBridgeUpgradeable, OwnableUpgradeab
         isPaused = false;
 
         emit MainBridgeResumed(msg.sender);
+    }
+
+    function addApprovedToken(address token) external onlyOwner {
+        isApprovedToken[token] = true;
     }
 
     function changeAuthorityRequest(address _oldAuthority, address _newAuthority) external onlyOwner {
@@ -398,6 +406,7 @@ contract EnhancedMainBridgeV2 is EnhancedMainBridgeUpgradeable, OwnableUpgradeab
 
     function receiveApproval(address _from, uint256 _value, address _token, bytes memory _extraData)
     external onlyWhenAlive() {
+        require(isApprovedToken[msg.sender], "not approved token");
         internalDeposit(_from, bytesToBytes32(_extraData, 0), _value);
     }
 
