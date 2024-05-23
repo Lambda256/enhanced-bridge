@@ -1,50 +1,33 @@
+import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
 import {
   EnhancedERC1967Proxy,
   EnhancedMainBridge,
   EnhancedMainBridgeV2,
+  MultiSig,
 } from "../typechain-types";
 import { ethers } from "hardhat";
 import { expect } from "chai";
-import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
+import { createTxId } from "./test.helper";
 
 describe("EnhancedMainBridgeUpgrade", () => {
+  let multiSig: MultiSig;
   let proxy: EnhancedERC1967Proxy;
   let enhancedMainBridge: EnhancedMainBridge;
   let enhancedMainBridgeV2: EnhancedMainBridgeV2;
-  let contractOwner: SignerWithAddress;
+
+  let validator1: SignerWithAddress;
+  let validator2: SignerWithAddress;
 
   before(async () => {
+    const signers = await ethers.getSigners();
+    validator1 = signers[1];
+    validator2 = signers[2];
+
     const EnhancedMainBridge =
       await ethers.getContractFactory("EnhancedMainBridge");
     enhancedMainBridge = await EnhancedMainBridge.deploy();
     await enhancedMainBridge.deployed();
 
-    const signers = await ethers.getSigners();
-    contractOwner = signers[0];
-  });
-
-  it("초기화 조건이 맞지 않을 경우 프록시 배포에 실패한다", async () => {
-    const EnhancedERC1967Proxy = await ethers.getContractFactory(
-      "EnhancedERC1967Proxy",
-    );
-    const data = enhancedMainBridge.interface.encodeFunctionData("initialize", [
-      0,
-      ethers.Wallet.createRandom().address,
-      ethers.Wallet.createRandom().address,
-    ]);
-
-    try {
-      proxy = await EnhancedERC1967Proxy.deploy(
-        enhancedMainBridge.address,
-        data,
-      );
-      await proxy.deployed();
-    } catch (error: any) {
-      expect(error.message).to.contain("transaction may fail");
-    }
-  });
-
-  it("초기화 조건이 맞을 경우 프록시 배포에 성공한다", async () => {
     const EnhancedERC1967Proxy = await ethers.getContractFactory(
       "EnhancedERC1967Proxy",
     );
@@ -57,93 +40,95 @@ describe("EnhancedMainBridgeUpgrade", () => {
     proxy = await EnhancedERC1967Proxy.deploy(enhancedMainBridge.address, data);
     await proxy.deployed();
 
-    // then
-    const chainIdData =
-      enhancedMainBridge.interface.encodeFunctionData("chainId");
-    const ownerData = enhancedMainBridge.interface.encodeFunctionData("owner");
-    const chainId = await ethers.provider.call({
-      to: proxy.address,
-      data: chainIdData,
-    });
-    const owner = await ethers.provider.call({
-      to: proxy.address,
-      data: ownerData,
-    });
-
-    expect(parseInt(chainId)).to.equal(31337);
-    expect(ethers.utils.hexValue(owner)).to.equal(
-      contractOwner.address.toLowerCase(),
-    );
+    const tx = await enhancedMainBridge
+      .attach(proxy.address)
+      .registerSideBridge(ethers.Wallet.createRandom().address, 2, [
+        validator1.address,
+        validator2.address,
+      ]);
+    await tx.wait();
   });
 
-  describe("upgrade", () => {
-    const authority1 = ethers.Wallet.createRandom().address;
-    const authority2 = ethers.Wallet.createRandom().address;
+  describe("change owner to MultiSigContract", () => {
     before(async () => {
-      const registerSideBridge =
-        enhancedMainBridge.interface.encodeFunctionData("registerSideBridge", [
-          ethers.Wallet.createRandom().address,
-          2,
-          [authority1, authority2],
-        ]);
-
-      const txResponse = await proxy.fallback({
-        data: registerSideBridge,
-      });
-      await txResponse.wait();
+      const MultiSig = await ethers.getContractFactory("MultiSig");
+      multiSig = await MultiSig.deploy(
+        [validator1.address, validator2.address],
+        2,
+      );
+      await multiSig.deployed();
     });
-    it("EnhancedMainBridgeV2로 업그레이드 한다, 기존의 초기화 정보를 확인한다", async () => {
+
+    it("checks owner after transfer ownership to MultiSigContract", async () => {
+      const tx = await enhancedMainBridge
+        .attach(proxy.address)
+        .transferOwnership(multiSig.address);
+      await tx.wait();
+
+      const newOwner = await enhancedMainBridge.attach(proxy.address).owner();
+      expect(newOwner).to.equal(multiSig.address);
+    });
+  });
+
+  describe("upgrade to EnhancedMainBridgeV2", () => {
+    let initializeV2Data: string;
+    before(async () => {
       const EnhancedMainBridgeV2 = await ethers.getContractFactory(
         "EnhancedMainBridgeV2",
       );
       enhancedMainBridgeV2 = await EnhancedMainBridgeV2.deploy();
       await enhancedMainBridgeV2.deployed();
 
-      const initializeV2Data =
-        enhancedMainBridgeV2.interface.encodeFunctionData("initializeV2", [
-          [authority1, authority2],
-        ]);
-      const upgradeAndCallData =
-        enhancedMainBridge.interface.encodeFunctionData("upgradeToAndCall", [
-          enhancedMainBridgeV2.address,
-          initializeV2Data,
-        ]);
-      const txResponse = await proxy.fallback({
-        data: upgradeAndCallData,
-      });
-      await txResponse.wait();
-
-      // then
-      const chainIdData =
-        enhancedMainBridgeV2.interface.encodeFunctionData("chainId");
-      const ownerData =
-        enhancedMainBridgeV2.interface.encodeFunctionData("owner");
-      const authorityListData =
-        enhancedMainBridgeV2.interface.encodeFunctionData("getAuthorities");
-
-      const chainId = await ethers.provider.call({
-        to: proxy.address,
-        data: chainIdData,
-      });
-      const owner = await ethers.provider.call({
-        to: proxy.address,
-        data: ownerData,
-      });
-      const authorityList = await ethers.provider.call({
-        to: proxy.address,
-        data: authorityListData,
-      });
-
-      expect(parseInt(chainId)).to.equal(31337);
-      expect(ethers.utils.hexValue(owner)).to.equal(
-        contractOwner.address.toLowerCase(),
+      initializeV2Data = enhancedMainBridgeV2.interface.encodeFunctionData(
+        "initializeV2",
+        [[validator1.address, validator2.address]],
       );
-      expect(authorityList).to.equal(
-        ethers.utils.defaultAbiCoder.encode(
-          ["address[]"],
-          [[authority1, authority2]],
-        ),
+    });
+    it("is impossible to upgrade by not owner", async () => {
+      await expect(
+        enhancedMainBridge
+          .attach(proxy.address)
+          .upgradeToAndCall(enhancedMainBridgeV2.address, initializeV2Data),
+      ).to.revertedWithCustomError(
+        enhancedMainBridge,
+        "OwnableUnauthorizedAccount",
       );
+    });
+
+    describe("upgrade by MultiSig (owner)", () => {
+      let upgradeToAndCallData: string;
+
+      before(async () => {
+        upgradeToAndCallData = enhancedMainBridge.interface.encodeFunctionData(
+          "upgradeToAndCall",
+          [enhancedMainBridgeV2.address, initializeV2Data],
+        );
+      });
+      it("submit upgrade transaction to MultiSig", async () => {
+        const tx = await multiSig
+          .connect(validator1)
+          .submitTransaction(proxy.address, upgradeToAndCallData);
+        await tx.wait();
+
+        await expect(tx).to.emit(multiSig, "SubmitTransaction");
+      });
+
+      it("approve upgrade transaction by validator1", async () => {
+        const txId = createTxId(proxy.address, upgradeToAndCallData, 1);
+        const tx = await multiSig.connect(validator1).approveTransaction(txId);
+        await tx.wait();
+
+        await expect(tx).to.emit(multiSig, "ApproveTransaction");
+      });
+
+      it("approve upgrade transaction by validator2 and executed", async () => {
+        const txId = createTxId(proxy.address, upgradeToAndCallData, 1);
+        const tx = await multiSig.connect(validator2).approveTransaction(txId);
+        await tx.wait();
+
+        await expect(tx).to.emit(multiSig, "ExecuteTransaction");
+        await expect(tx).to.emit(proxy, "Upgraded");
+      });
     });
   });
 });
