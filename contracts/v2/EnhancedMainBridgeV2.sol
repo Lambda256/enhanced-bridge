@@ -410,7 +410,7 @@ contract EnhancedMainBridgeV2 is EnhancedMainBridgeUpgradeable, OwnableUpgradeab
         return out;
     }
 
-    function getAuthorities() public view onlyOwner returns  (address[] memory) {
+    function getAuthorities() public view returns  (address[] memory) {
         return authorityList;
     }
 
