@@ -143,6 +143,7 @@ contract MultiSig {
         require(!validatorTx.executed, "MultiSig: change validator request is already executed");
         require(validatorTx.possibleValidators[msg.sender], "MultiSig: caller is not a possible validator");
         require(!validatorTx.isConfirmed[msg.sender], "MultiSig: caller has already confirmed");
+        require(!isValidator[validatorTx.newValidator], "MultiSig: new validator should not be a validator");
 
         validatorTx.isConfirmed[msg.sender] = true;
         validatorTx.signedCount++;
