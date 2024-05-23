@@ -303,8 +303,6 @@ contract EnhancedMainBridgeV2 is EnhancedMainBridgeUpgradeable, OwnableUpgradeab
         bytes32 txHash
     ) onlyAuthority() external {
         require(_beneficiary != address(0));
-        require(_redeemId ==
-            keccak256(abi.encodePacked(_sideTokenId, _beneficiary, _amountST, txHash)), "invalid redeemId");
 
         WithdrawInfo storage withdrawInfo = withdraws[_redeemId];
 
@@ -332,6 +330,7 @@ contract EnhancedMainBridgeV2 is EnhancedMainBridgeUpgradeable, OwnableUpgradeab
 
         require(withdrawInfo.possibleAuthorities[msg.sender], "not possible authority");
         require(withdrawInfo.beneficiary == _beneficiary);
+        require(withdrawInfo.amountST == _amountST);
 
         if (withdrawInfo.authoritySigned[msg.sender] == false) {
             withdrawInfo.authoritySigned[msg.sender] = true;
