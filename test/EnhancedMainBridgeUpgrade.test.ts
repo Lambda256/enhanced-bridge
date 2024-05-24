@@ -17,6 +17,7 @@ describe("EnhancedMainBridgeUpgrade", () => {
 
   let validator1: SignerWithAddress;
   let validator2: SignerWithAddress;
+  const mainTokenAddress = ethers.Wallet.createRandom().address;
 
   before(async () => {
     const signers = await ethers.getSigners();
@@ -31,9 +32,10 @@ describe("EnhancedMainBridgeUpgrade", () => {
     const EnhancedERC1967Proxy = await ethers.getContractFactory(
       "EnhancedERC1967Proxy",
     );
+
     const data = enhancedMainBridge.interface.encodeFunctionData("initialize", [
       31337,
-      ethers.Wallet.createRandom().address,
+      mainTokenAddress,
       ethers.Wallet.createRandom().address,
     ]);
 
@@ -128,6 +130,17 @@ describe("EnhancedMainBridgeUpgrade", () => {
 
         await expect(tx).to.emit(multiSig, "ExecuteTransaction");
         await expect(tx).to.emit(proxy, "Upgraded");
+      });
+
+      it("checks chanid and approved token in EnhancedMainBridgeV2", async () => {
+        const chainId = await enhancedMainBridgeV2
+          .attach(proxy.address)
+          .chainId();
+        const approvedToken = await enhancedMainBridgeV2
+          .attach(proxy.address)
+          .isApprovedToken(mainTokenAddress);
+        expect(chainId).to.equal(31337);
+        expect(approvedToken).to.equal(true);
       });
     });
   });
