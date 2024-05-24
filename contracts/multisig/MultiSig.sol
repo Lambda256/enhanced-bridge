@@ -59,7 +59,6 @@ contract MultiSig {
     address[] public validators;
     mapping(address => bool) public isValidator;
     uint256 public requiredSignatureCount;
-    bool private changeValidatorFlag = false;
 
     uint256 public changeValidatorCount = 0;
     uint256 public txCount = 0;
@@ -89,13 +88,10 @@ contract MultiSig {
         address validator,
         uint256 threshold
     ) external onlyValidator {
-        require(!changeValidatorFlag, "MultiSig: change validator request is already in progress");
         require(validator != address(0), "MultiSig: validator should not be the zero address");
         require(!isValidator[validator], "MultiSig: validator should not be a validator");
         require(threshold <= validators.length + 1, "MultiSig: threshold should be less than or equal to validators.length + 1");
         require(threshold > ((validators.length + 1) / 2), "MultiSig: threshold should be greater than (validators.length + 1) / 2");
-
-        changeValidatorFlag = true;
 
         _recordChangeValidatorRequest(address(0), validator, threshold);
     }
@@ -104,14 +100,11 @@ contract MultiSig {
         address validator,
         uint256 threshold
     ) external onlyValidator {
-        require(!changeValidatorFlag, "MultiSig: change validator request is already in progress");
         require(validator != address(0), "MultiSig: validator should not be the zero address");
         require(isValidator[validator], "MultiSig: validator should be a validator");
         require(validators.length > 1, "MultiSig: validators.length should be greater than 1");
         require(threshold <= validators.length - 1, "MultiSig: threshold should be less than or equal to validators.length - 1");
         require(threshold > ((validators.length - 1) / 2), "MultiSig: threshold should be greater than (validators.length - 1) / 2");
-
-        changeValidatorFlag = true;
 
         _recordChangeValidatorRequest(validator, address(0), threshold);
     }
@@ -121,7 +114,6 @@ contract MultiSig {
         address newValidator,
         uint256 threshold
     ) external onlyValidator {
-        require(!changeValidatorFlag, "MultiSig: change validator request is already in progress");
         require(oldValidator != address(0), "MultiSig: old validator should not be the zero address");
         require(newValidator != address(0), "MultiSig: new validator should not be the zero address");
         require(isValidator[oldValidator], "MultiSig: old validator should be a validator");
@@ -129,20 +121,18 @@ contract MultiSig {
         require(threshold <= validators.length, "MultiSig: threshold should be less than or equal to validators.length");
         require(threshold > (validators.length / 2), "MultiSig: threshold should be greater than validators.length / 2");
 
-        changeValidatorFlag = true;
-
         _recordChangeValidatorRequest(oldValidator, newValidator, threshold);
     }
 
     function approveChangeValidatorRequest(
         bytes32 txId
     ) external onlyValidator {
-        require(changeValidatorFlag, "MultiSig: change validator request is not in progress");
         ValidatorTx storage validatorTx = validatorTxs[txId];
 
         require(!validatorTx.executed, "MultiSig: change validator request is already executed");
         require(validatorTx.possibleValidators[msg.sender], "MultiSig: caller is not a possible validator");
         require(!validatorTx.isConfirmed[msg.sender], "MultiSig: caller has already confirmed");
+        require(!isValidator[validatorTx.newValidator], "MultiSig: new validator should not be a validator");
 
         validatorTx.isConfirmed[msg.sender] = true;
         validatorTx.signedCount++;
@@ -158,7 +148,6 @@ contract MultiSig {
                 _updateValidator(validatorTx.oldValidator, validatorTx.newValidator);
             }
 
-            changeValidatorFlag = false;
             requiredSignatureCount = validatorTx.threshold;
             validatorTx.executed = true;
 
