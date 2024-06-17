@@ -182,7 +182,7 @@ contract EnhancedMainBridgeV2 is EnhancedMainBridgeUpgradeable, OwnableUpgradeab
 
         changeAuthoritySignedHistory[_changeId][msg.sender] = true;
         changeAuthoritySignedCount[_changeId]++;
-        int authoritySignedCount = 0;
+        uint authoritySignedCount = 0;
         for (uint i = 0; i < authorityList.length; i++) {
             if (changeAuthoritySignedHistory[_changeId][authorityList[i]]) {
                 authoritySignedCount++;
@@ -335,14 +335,14 @@ contract EnhancedMainBridgeV2 is EnhancedMainBridgeUpgradeable, OwnableUpgradeab
             emit MainTokenWithdrawSigned(_redeemId, msg.sender, _beneficiary, withdrawInfo.amountMT, withdrawInfo.signedCount);
         }
 
-        int authoritySigned = 0;
+        uint authoritySignedCount = 0;
         for (uint i = 0; i < authorityList.length; i++) {
             if (withdrawInfo.authoritySigned[authorityList[i]]) {
-                authoritySigned++;
+                authoritySignedCount++;
             }
         }
 
-        if (authoritySigned >= requiredSignatures) {
+        if (authoritySignedCount >= requiredSignatures) {
             mainToken().transfer(_beneficiary, withdrawInfo.amountMT);
 
             withdrawInfo.withdrawed = true;
@@ -361,14 +361,14 @@ contract EnhancedMainBridgeV2 is EnhancedMainBridgeUpgradeable, OwnableUpgradeab
         depositInfo.authoritySigned[msg.sender] = true;
         depositInfo.confirmedCount++;
 
-        int authoritySigned = 0;
+        uint authoritySignedCount = 0;
         for (uint i = 0; i < authorityList.length; i++) {
             if (depositInfo.authoritySigned[authorityList[i]]) {
-                authoritySigned++;
+                authoritySignedCount++;
             }
         }
 
-        if (depositInfo.confirmed == false && authoritySigned >= requiredSignatures) {
+        if (depositInfo.confirmed == false && authoritySignedCount >= requiredSignatures) {
             depositInfo.confirmed = true;
 
             emit DepositConfirmed(depositInfo.sideTokenId, depositId, depositInfo.sender, depositInfo.amountMT, depositInfo.amountST);
