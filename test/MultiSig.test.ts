@@ -191,5 +191,84 @@ describe("MultiSig", () => {
       expect(status[0]).to.equal(true);
       expect(status[1].toNumber()).to.equal(2);
     });
+    describe("execute transaction when validator changed", () => {
+      it("submit transaction and check correct transaction status", async () => {
+        const testData = multiSigTxtTest.interface.encodeFunctionData("test");
+        const tx = await multiSig
+          .connect(validator4)
+          .submitTransaction(multiSigTxtTest.address, testData);
+        await tx.wait();
+
+        const txId = createTxId(multiSigTxtTest.address, testData, 2);
+
+        const status = await multiSig.getTransactionStatus(txId);
+
+        expect(status[0]).to.equal(false);
+        expect(status[1].toNumber()).to.equal(0);
+      });
+
+      it("approve tx with old validator and update old validator with new validator", async () => {
+        const testData = multiSigTxtTest.interface.encodeFunctionData("test");
+        const txId = createTxId(multiSigTxtTest.address, testData, 2);
+
+        const confirmTx1 = await multiSig
+          .connect(validator2)
+          .approveTransaction(txId);
+        await confirmTx1.wait();
+
+        const tx = await multiSig
+          .connect(validator2)
+          .updateValidatorRequest(validator2.address, validator1.address, 2);
+        await tx.wait();
+
+        const updateId = createValidatorTxId(
+          validator2.address,
+          validator1.address,
+          2,
+          4,
+        );
+
+        const confirm1 = await multiSig
+          .connect(validator2)
+          .approveChangeValidatorRequest(updateId);
+        await confirm1.wait();
+        const confirm2 = await multiSig
+          .connect(validator4)
+          .approveChangeValidatorRequest(updateId);
+        await confirm2.wait();
+
+        const validators = await multiSig.getValidators();
+        const txStatus = await multiSig.getTransactionStatus(txId);
+
+        expect(validators).to.eql([validator4.address, validator1.address]);
+        expect(txStatus[0]).to.equal(false);
+      });
+
+      it("tx should not be executed although new validator approved tx", async () => {
+        const testData = multiSigTxtTest.interface.encodeFunctionData("test");
+        const txId = createTxId(multiSigTxtTest.address, testData, 2);
+
+        const confirmTx = await multiSig
+          .connect(validator1)
+          .approveTransaction(txId);
+        await confirmTx.wait();
+
+        const txStatus = await multiSig.getTransactionStatus(txId);
+        expect(txStatus[0]).to.equal(false);
+      });
+
+      it("tx should be executed when required number of current validators approved it", async () => {
+        const testData = multiSigTxtTest.interface.encodeFunctionData("test");
+        const txId = createTxId(multiSigTxtTest.address, testData, 2);
+
+        const confirmTx = await multiSig
+          .connect(validator4)
+          .approveTransaction(txId);
+        await confirmTx.wait();
+
+        const txStatus = await multiSig.getTransactionStatus(txId);
+        expect(txStatus[0]).to.equal(true);
+      });
+    });
   });
 });
