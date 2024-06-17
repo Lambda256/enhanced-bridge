@@ -33,11 +33,11 @@ contract EnhancedMainBridgeV2 is EnhancedMainBridgeUpgradeable, OwnableUpgradeab
 
     uint256 depositCount;
     uint256 requiredSignatures;
+    // v1 storage region end
 
     address[] private authorityList;
     bool private authorityChanging = false;
-    mapping(bytes32 => mapping(address => bool)) private changeAuthorityPossibleAuthorities;
-    // storage layout region end
+    // v2 storage layout region end
 
     event Deposited(bytes32 indexed sideTokenId, bytes32 indexed depositId, uint256 depositCount, address beneficiary, uint256 amountMT, uint256 amountST);
     event DepositConfirmed(bytes32 sideTokenId, bytes32 depositId, address beneficiary, uint256 amountMT, uint256 amountST);
@@ -168,10 +168,6 @@ contract EnhancedMainBridgeV2 is EnhancedMainBridgeUpgradeable, OwnableUpgradeab
         changeAuthorityCount++;
         authorityChanging = true;
 
-        for (uint i = 0; i < authorityList.length; i++) {
-            changeAuthorityPossibleAuthorities[changeId][authorityList[i]] = true;
-        }
-
         emit ChangeAuthorityRequest(changeId, _oldAuthority, _newAuthority, changeAuthorityCount);
     }
 
@@ -183,20 +179,29 @@ contract EnhancedMainBridgeV2 is EnhancedMainBridgeUpgradeable, OwnableUpgradeab
         require(_oldAuthority != address(0));
         require(_newAuthority != address(0));
         require(!changeAuthoritySignedHistory[_changeId][msg.sender]); // allow once for one authority
-        require(changeAuthorityPossibleAuthorities[_changeId][msg.sender], "not possible authority"); // check if authority is possible to sign
         require(_changeId ==
             keccak256(abi.encodePacked(_oldAuthority, _newAuthority, changeAuthorityCount - 1)), "invalid changeId");
 
         changeAuthoritySignedHistory[_changeId][msg.sender] = true;
         changeAuthoritySignedCount[_changeId]++;
+        int authoritySignedCount = 0;
+        for (uint i = 0; i < authorityList.length; i++) {
+            if (changeAuthoritySignedHistory[_changeId][authorityList[i]]) {
+                authoritySignedCount++;
+            }
+        }
 
         if (authorities[_newAuthority] == false
-            && changeAuthoritySignedCount[_changeId] >= requiredSignatures
+            && authoritySignedCount >= requiredSignatures
         ) {
             authorities[_oldAuthority] = false;
             authorities[_newAuthority] = true;
             _updateAuthority(_oldAuthority, _newAuthority);
             authorityChanging = false;
+
+            for (uint i = 0; i < authorityList.length; i++) {
+                changeAuthoritySignedHistory[_changeId][authorityList[i]] = false;
+            }
 
             emit AuthorityChanged(_oldAuthority, _newAuthority, _changeId, changeAuthoritySignedCount[_changeId]);
         }
