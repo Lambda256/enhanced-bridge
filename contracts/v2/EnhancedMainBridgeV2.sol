@@ -87,7 +87,6 @@ contract EnhancedMainBridgeV2 is EnhancedMainBridgeUpgradeable, OwnableUpgradeab
         bool withdrawed;
 
         mapping(address => bool) authoritySigned;
-        mapping(address => bool) possibleAuthorities;
     }
 
     function initialize(
@@ -325,12 +324,8 @@ contract EnhancedMainBridgeV2 is EnhancedMainBridgeUpgradeable, OwnableUpgradeab
             withdrawInfo.amountMT = amountMT;
             withdrawInfo.amountST = _amountST;
             withdrawInfo.withdrawed = false;
-            for (uint i = 0; i < authorityList.length; i++) {
-                withdrawInfo.possibleAuthorities[authorityList[i]] = true;
-            }
         }
 
-        require(withdrawInfo.possibleAuthorities[msg.sender], "not possible authority");
         require(withdrawInfo.beneficiary == _beneficiary);
 
         if (withdrawInfo.authoritySigned[msg.sender] == false) {
