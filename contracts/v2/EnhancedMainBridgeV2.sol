@@ -75,7 +75,6 @@ contract EnhancedMainBridgeV2 is EnhancedMainBridgeUpgradeable, OwnableUpgradeab
         bool confirmed;
 
         mapping(address => bool) authoritySigned;
-        mapping(address => bool) possibleAuthorities;
     }
 
     struct WithdrawInfo {
@@ -293,10 +292,6 @@ contract EnhancedMainBridgeV2 is EnhancedMainBridgeUpgradeable, OwnableUpgradeab
         depositInfo.confirmed = false;
         depositInfo.confirmedCount = 0;
 
-        for (uint i = 0; i < authorityList.length; i++) {
-            depositInfo.possibleAuthorities[authorityList[i]] = true;
-        }
-
         emit Deposited(_sideTokenId, depositId, depositCount, _beneficiary, _amount, amountST);
     }
 
@@ -355,7 +350,6 @@ contract EnhancedMainBridgeV2 is EnhancedMainBridgeUpgradeable, OwnableUpgradeab
 
     function confirmDeposit(bytes32 depositId) external onlyAuthority() {
         DepositInfo storage depositInfo = deposits[depositId];
-        require(depositInfo.possibleAuthorities[msg.sender], "not possible authority");
 
         if (depositInfo.authoritySigned[msg.sender]) {
             return;
