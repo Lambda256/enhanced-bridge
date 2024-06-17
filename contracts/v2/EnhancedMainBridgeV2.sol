@@ -335,7 +335,14 @@ contract EnhancedMainBridgeV2 is EnhancedMainBridgeUpgradeable, OwnableUpgradeab
             emit MainTokenWithdrawSigned(_redeemId, msg.sender, _beneficiary, withdrawInfo.amountMT, withdrawInfo.signedCount);
         }
 
-        if (withdrawInfo.signedCount >= requiredSignatures) {
+        int authoritySigned = 0;
+        for (uint i = 0; i < authorityList.length; i++) {
+            if (withdrawInfo.authoritySigned[authorityList[i]]) {
+                authoritySigned++;
+            }
+        }
+
+        if (authoritySigned >= requiredSignatures) {
             mainToken().transfer(_beneficiary, withdrawInfo.amountMT);
 
             withdrawInfo.withdrawed = true;
@@ -354,7 +361,14 @@ contract EnhancedMainBridgeV2 is EnhancedMainBridgeUpgradeable, OwnableUpgradeab
         depositInfo.authoritySigned[msg.sender] = true;
         depositInfo.confirmedCount++;
 
-        if (depositInfo.confirmed == false && depositInfo.confirmedCount >= requiredSignatures) {
+        int authoritySigned = 0;
+        for (uint i = 0; i < authorityList.length; i++) {
+            if (depositInfo.authoritySigned[authorityList[i]]) {
+                authoritySigned++;
+            }
+        }
+
+        if (depositInfo.confirmed == false && authoritySigned >= requiredSignatures) {
             depositInfo.confirmed = true;
 
             emit DepositConfirmed(depositInfo.sideTokenId, depositId, depositInfo.sender, depositInfo.amountMT, depositInfo.amountST);
