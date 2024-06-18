@@ -37,6 +37,7 @@ contract EnhancedMainBridgeV2 is EnhancedMainBridgeUpgradeable, OwnableUpgradeab
 
     address[] private authorityList;
     bool private authorityChanging = false;
+    mapping(address => bool) public isApprovedToken;
     // v2 storage layout region end
 
     event Deposited(bytes32 indexed sideTokenId, bytes32 indexed depositId, uint256 depositCount, address beneficiary, uint256 amountMT, uint256 amountST);
@@ -53,6 +54,7 @@ contract EnhancedMainBridgeV2 is EnhancedMainBridgeUpgradeable, OwnableUpgradeab
 
     event AuthorityChanged(address oldAuthority, address newAuthority, bytes32 changeId, uint8 changeAuthorityCount);
     event ChangeAuthorityRequest(bytes32 changeId, address oldAuthority, address newAuthority, uint256 changeCount);
+    event ChangeAuthorityRejected(bytes32 changeId);
 
     event MainBridgePaused(address from);
     event MainBridgeResumed(address from);
@@ -103,6 +105,8 @@ contract EnhancedMainBridgeV2 is EnhancedMainBridgeUpgradeable, OwnableUpgradeab
             require(authorities[_authorityList[i]] == true);
             authorityList.push(_authorityList[i]);
         }
+
+        isApprovedToken[address(mainToken())] = true;
     }
 
     modifier onlyAuthority() {
@@ -152,6 +156,10 @@ contract EnhancedMainBridgeV2 is EnhancedMainBridgeUpgradeable, OwnableUpgradeab
         emit MainBridgeResumed(msg.sender);
     }
 
+    function addApprovedToken(address token) external onlyOwner {
+        isApprovedToken[token] = true;
+    }
+
     function changeAuthorityRequest(address _oldAuthority, address _newAuthority) external onlyOwner {
         require(_oldAuthority != address(0));
         require(_newAuthority != address(0));
@@ -169,11 +177,29 @@ contract EnhancedMainBridgeV2 is EnhancedMainBridgeUpgradeable, OwnableUpgradeab
         emit ChangeAuthorityRequest(changeId, _oldAuthority, _newAuthority, changeAuthorityCount);
     }
 
+    /**
+      * if authorityChanging flag turns to false, it means that changeAuthority can no longer be executed
+      * if change authority is needed, new request needed to be submitted.
+      */
+    function rejectAuthorityRequest(
+        bytes32 _changeId,
+        address _oldAuthority,
+        address _newAuthority
+    ) external onlyOwner {
+        require(authorityChanging, "authority not changing");
+        require(_changeId == keccak256(abi.encodePacked(_oldAuthority, _newAuthority, changeAuthorityCount - 1)), "invalid changeId");
+
+        authorityChanging = false;
+
+        emit ChangeAuthorityRejected(_changeId);
+    }
+
     function changeAuthority(
         bytes32 _changeId,
         address _oldAuthority,
         address _newAuthority
     ) external onlyAuthority {
+        require(authorityChanging, "authority not changing");
         require(_oldAuthority != address(0));
         require(_newAuthority != address(0));
         require(!changeAuthoritySignedHistory[_changeId][msg.sender]); // allow once for one authority
@@ -302,8 +328,6 @@ contract EnhancedMainBridgeV2 is EnhancedMainBridgeUpgradeable, OwnableUpgradeab
         bytes32 txHash
     ) onlyAuthority() external {
         require(_beneficiary != address(0));
-        require(_redeemId ==
-            keccak256(abi.encodePacked(_sideTokenId, _beneficiary, _amountST, txHash)), "invalid redeemId");
 
         WithdrawInfo storage withdrawInfo = withdraws[_redeemId];
 
@@ -327,6 +351,7 @@ contract EnhancedMainBridgeV2 is EnhancedMainBridgeUpgradeable, OwnableUpgradeab
         }
 
         require(withdrawInfo.beneficiary == _beneficiary);
+        require(withdrawInfo.amountST == _amountST);
 
         uint8 authoritySignedCount = 0;
         if (withdrawInfo.authoritySigned[msg.sender] == false) {
@@ -407,6 +432,7 @@ contract EnhancedMainBridgeV2 is EnhancedMainBridgeUpgradeable, OwnableUpgradeab
 
     function receiveApproval(address _from, uint256 _value, address _token, bytes memory _extraData)
     external onlyWhenAlive() {
+        require(isApprovedToken[msg.sender], "not approved token");
         internalDeposit(_from, bytesToBytes32(_extraData, 0), _value);
     }
 
@@ -419,7 +445,7 @@ contract EnhancedMainBridgeV2 is EnhancedMainBridgeUpgradeable, OwnableUpgradeab
         return out;
     }
 
-    function getAuthorities() public view onlyOwner returns  (address[] memory) {
+    function getAuthorities() public view returns  (address[] memory) {
         return authorityList;
     }
 
