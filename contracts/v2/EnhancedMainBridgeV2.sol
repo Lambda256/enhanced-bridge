@@ -182,7 +182,7 @@ contract EnhancedMainBridgeV2 is EnhancedMainBridgeUpgradeable, OwnableUpgradeab
 
         changeAuthoritySignedHistory[_changeId][msg.sender] = true;
         changeAuthoritySignedCount[_changeId]++;
-        uint authoritySignedCount = 0;
+        uint8 authoritySignedCount = 0;
         for (uint i = 0; i < authorityList.length; i++) {
             if (changeAuthoritySignedHistory[_changeId][authorityList[i]]) {
                 authoritySignedCount++;
@@ -328,7 +328,7 @@ contract EnhancedMainBridgeV2 is EnhancedMainBridgeUpgradeable, OwnableUpgradeab
 
         require(withdrawInfo.beneficiary == _beneficiary);
 
-        uint authoritySignedCount = 0;
+        uint8 authoritySignedCount = 0;
         if (withdrawInfo.authoritySigned[msg.sender] == false) {
             withdrawInfo.authoritySigned[msg.sender] = true;
             withdrawInfo.signedCount++;
@@ -362,7 +362,7 @@ contract EnhancedMainBridgeV2 is EnhancedMainBridgeUpgradeable, OwnableUpgradeab
         depositInfo.authoritySigned[msg.sender] = true;
         depositInfo.confirmedCount++;
 
-        uint authoritySignedCount = 0;
+        uint8 authoritySignedCount = 0;
         for (uint i = 0; i < authorityList.length; i++) {
             if (depositInfo.authoritySigned[authorityList[i]]) {
                 authoritySignedCount++;
