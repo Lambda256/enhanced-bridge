@@ -328,19 +328,20 @@ contract EnhancedMainBridgeV2 is EnhancedMainBridgeUpgradeable, OwnableUpgradeab
 
         require(withdrawInfo.beneficiary == _beneficiary);
 
+        uint authoritySignedCount = 0;
         if (withdrawInfo.authoritySigned[msg.sender] == false) {
             withdrawInfo.authoritySigned[msg.sender] = true;
             withdrawInfo.signedCount++;
 
-            emit MainTokenWithdrawSigned(_redeemId, msg.sender, _beneficiary, withdrawInfo.amountMT, withdrawInfo.signedCount);
+            for (uint i = 0; i < authorityList.length; i++) {
+                if (withdrawInfo.authoritySigned[authorityList[i]]) {
+                    authoritySignedCount++;
+                }
+            }
+
+            emit MainTokenWithdrawSigned(_redeemId, msg.sender, _beneficiary, withdrawInfo.amountMT, authoritySignedCount);
         }
 
-        uint authoritySignedCount = 0;
-        for (uint i = 0; i < authorityList.length; i++) {
-            if (withdrawInfo.authoritySigned[authorityList[i]]) {
-                authoritySignedCount++;
-            }
-        }
 
         if (authoritySignedCount >= requiredSignatures) {
             mainToken().transfer(_beneficiary, withdrawInfo.amountMT);
