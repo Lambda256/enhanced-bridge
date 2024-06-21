@@ -36,10 +36,8 @@ contract MultiSig {
         uint value;
         bytes data;
         bool executed;
-        uint256 signedCount;
 
         mapping(address => bool) isConfirmed;
-        mapping(address => bool) possibleValidators;
     }
 
     struct ValidatorTx {
@@ -47,10 +45,8 @@ contract MultiSig {
         address newValidator;
         uint256 threshold;
         bool executed;
-        uint256 signedCount;
 
         mapping(address => bool) isConfirmed;
-        mapping(address => bool) possibleValidators;
     }
 
     mapping(bytes32 => Transaction) public transactions;
@@ -130,16 +126,20 @@ contract MultiSig {
         ValidatorTx storage validatorTx = validatorTxs[txId];
 
         require(!validatorTx.executed, "MultiSig: change validator request is already executed");
-        require(validatorTx.possibleValidators[msg.sender], "MultiSig: caller is not a possible validator");
         require(!validatorTx.isConfirmed[msg.sender], "MultiSig: caller has already confirmed");
         require(!isValidator[validatorTx.newValidator], "MultiSig: new validator should not be a validator");
 
         validatorTx.isConfirmed[msg.sender] = true;
-        validatorTx.signedCount++;
+        uint256 signedCount = 0;
+        for (uint i = 0; i < validators.length; i++) {
+            if (validatorTx.isConfirmed[validators[i]]) {
+                signedCount++;
+            }
+        }
 
-        emit ChangeValidatorApproved(txId, validatorTx.signedCount);
+        emit ChangeValidatorApproved(txId, signedCount);
 
-        if (validatorTx.signedCount >= requiredSignatureCount) {
+        if (signedCount >= requiredSignatureCount) {
             if (validatorTx.oldValidator == address(0)) {
                 _addValidator(validatorTx.newValidator);
             } else if (validatorTx.newValidator == address(0)) {
@@ -166,9 +166,6 @@ contract MultiSig {
         transaction.to = to;
         transaction.value = msg.value;
         transaction.data = data;
-        for (uint i = 0; i < validators.length; i++) {
-            transaction.possibleValidators[validators[i]] = true;
-        }
 
         emit SubmitTransaction(txId, txCount);
     }
@@ -177,15 +174,20 @@ contract MultiSig {
         Transaction storage transaction = transactions[txId];
 
         require(!transaction.executed, "MultiSig: transaction is already executed");
-        require(transaction.possibleValidators[msg.sender], "MultiSig: caller is not a possible validator");
         require(!transaction.isConfirmed[msg.sender], "MultiSig: caller has already confirmed");
 
         transaction.isConfirmed[msg.sender] = true;
-        transaction.signedCount++;
 
-        emit ApproveTransaction(txId, transaction.signedCount);
+        uint256 signedCount = 0;
+        for (uint i = 0; i < validators.length; i++) {
+            if (transaction.isConfirmed[validators[i]]) {
+                signedCount++;
+            }
+        }
 
-        if (transaction.signedCount >= requiredSignatureCount) {
+        emit ApproveTransaction(txId, signedCount);
+
+        if (signedCount >= requiredSignatureCount) {
             transaction.executed = true;
             (bool success, bytes memory data) = transaction.to.call{value: transaction.value}(transaction.data);
             if (!success) {
@@ -202,12 +204,24 @@ contract MultiSig {
 
     function getUpdateValidatorStatus(bytes32 txId) public view returns (bool, uint256) {
         ValidatorTx storage validatorTx = validatorTxs[txId];
-        return (validatorTx.executed, validatorTx.signedCount);
+        uint256 signedCount = 0;
+        for (uint i = 0; i < validators.length; i++) {
+            if (validatorTx.isConfirmed[validators[i]]) {
+                signedCount++;
+            }
+        }
+        return (validatorTx.executed, signedCount);
     }
 
     function getTransactionStatus(bytes32 txId) public view returns (bool, uint256) {
         Transaction storage transaction = transactions[txId];
-        return (transaction.executed, transaction.signedCount);
+        uint256 signedCount = 0;
+        for (uint i = 0; i < validators.length; i++) {
+            if (transaction.isConfirmed[validators[i]]) {
+                signedCount++;
+            }
+        }
+        return (transaction.executed, signedCount);
     }
 
     function _recordChangeValidatorRequest(
@@ -221,9 +235,6 @@ contract MultiSig {
         validatorTx.oldValidator = oldValidator;
         validatorTx.newValidator = newValidator;
         validatorTx.threshold = threshold;
-        for (uint i = 0; i < validators.length; i++) {
-            validatorTx.possibleValidators[validators[i]] = true;
-        }
 
         emit ChangeValidatorRequest(validatorTxId, changeValidatorCount);
     }
