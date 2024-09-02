@@ -161,8 +161,8 @@ contract TimeLockedMultiSig is AccessControl {
     ) public virtual onlyRole(getRoleAdmin(APPROVER_ROLE)) {
         require(approver != address(0), "TimeLockedMultiSig: approver should not be the zero address");
         require(!hasRole(APPROVER_ROLE, approver), "TimeLockedMultiSig: approver should not have APPROVER_ROLE");
-        require(_threshold <= _approvers.length + 1, "TimeLockedMultiSig: threshold should be less than or equal to approvers.length + 1");
-        require(_threshold > (_approvers.length + 1) / 2, "TimeLockedMultiSig: threshold should be greater than (approvers.length + 1) / 2");
+        require(threshold <= _approvers.length + 1, "TimeLockedMultiSig: threshold should be less than or equal to approvers.length + 1");
+        require(threshold > (_approvers.length + 1) / 2, "TimeLockedMultiSig: threshold should be greater than (approvers.length + 1) / 2");
 
         uint256 oldThreshold = _threshold;
         _threshold = threshold;
@@ -270,6 +270,14 @@ contract TimeLockedMultiSig is AccessControl {
      */
     function getMinDelay() public view virtual returns (uint256) {
         return _minDelay;
+    }
+
+    function getThreshold() public view virtual returns (uint256) {
+        return _threshold;
+    }
+
+    function getApprovers() public view virtual returns (address[] memory) {
+        return _approvers;
     }
 
     /**
@@ -407,7 +415,7 @@ contract TimeLockedMultiSig is AccessControl {
             }
         }
 
-        require(approvalCount >= _threshold, "TimelockController: insufficient approvals");
+        require(approvalCount >= getThreshold(), "TimelockController: insufficient approvals");
     }
 
     /**
@@ -417,6 +425,18 @@ contract TimeLockedMultiSig is AccessControl {
         require(isOperationReady(id), "TimelockController: operation is not ready");
         Transaction storage transaction = _transactions[id];
         transaction.timestamps = _DONE_TIMESTAMP;
+    }
+
+    function isApproved(
+        address target,
+        uint256 value,
+        bytes calldata payload,
+        bytes32 predecessor,
+        bytes32 salt,
+        address approver
+    ) public view virtual returns (bool) {
+        bytes32 id = hashOperation(target, value, payload, predecessor, salt);
+        return _transactions[id].isApproved[approver];
     }
 
     /**
