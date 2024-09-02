@@ -14,14 +14,33 @@ contract TimeLockedMultiSig is AccessControl {
 
     address[] private _approvers;
 
-    mapping(bytes32 => uint256) private _timestamps;
+    struct Transaction {
+        uint256 timestamps;
+        mapping(address => bool) isApproved;
+    }
+
+    mapping (bytes32 => Transaction) private _transactions;
     uint256 private _minDelay;
     uint256 private _threshold;
 
     /**
+     * @dev Emitted when a call is scheduled as part of operation `id`.
+     */
+    event CallScheduled(
+        bytes32 indexed id,
+        address target,
+        uint256 value,
+        bytes data,
+        bytes32 predecessor,
+        uint256 delay
+    );
+
+    event CallApproved(bytes32 indexed id);
+
+    /**
      * @dev Emitted when a call is performed as part of operation `id`.
      */
-    event CallExecuted(bytes32 indexed id, uint256 indexed index, address target, uint256 value, bytes data);
+    event CallExecuted(bytes32 indexed id, address target, uint256 value, bytes data);
 
     /**
      * @dev Emitted when new proposal is scheduled with non-zero salt.
@@ -39,8 +58,11 @@ contract TimeLockedMultiSig is AccessControl {
     event MinDelayChange(uint256 oldDuration, uint256 newDuration);
 
     event MinApprovalThresholdChange(uint256 oldThreshold, uint256 newThreshold);
+
     event ApproverAdded(address indexed approver);
+
     event ApproverRemoved(address indexed approver);
+
     event ApproverUpdated(address oldApprover, address indexed newApprover);
 
     /**
@@ -95,7 +117,7 @@ contract TimeLockedMultiSig is AccessControl {
         require(threshold > (approvers.length / 2));
 
         for (uint i = 0; i < approvers.length; i++) {
-            require(approvers[i] != address(0), "TimeLockedMultiSig.constructor: approver should not be the zero address");
+            require(approvers[i] != address(0), "TimeLockedMultiSig: approver should not be the zero address");
             _grantRole(APPROVER_ROLE, approvers[i]);
         }
 
@@ -105,18 +127,31 @@ contract TimeLockedMultiSig is AccessControl {
         emit MinApprovalThresholdChange(0, threshold);
     }
 
+    /**
+     * @dev Modifier to make a function callable only by a certain role. In
+     * addition to checking the sender's role, `address(0)` 's role is also
+     * considered. Granting a role to `address(0)` is equivalent to enabling
+     * this role for everyone.
+     */
+    modifier onlyRoleOrOpenRole(bytes32 role) {
+        if (!hasRole(role, address(0))) {
+            _checkRole(role, _msgSender());
+        }
+        _;
+    }
+
     function grantRole(bytes32 role, address account) public virtual override onlyRole(getRoleAdmin(role)) {
-        require(role != APPROVER_ROLE, "TimeLockedMultiSig.grantRole: use addApprover to add approver");
+        require(role != APPROVER_ROLE, "TimeLockedMultiSig: use addApprover to add approver");
         super.grantRole(role, account);
     }
 
     function revokeRole(bytes32 role, address account) public virtual override onlyRole(getRoleAdmin(role)) {
-        require(role != APPROVER_ROLE, "TimeLockedMultiSig.revokeRole: use removeApprover to remove approver");
+        require(role != APPROVER_ROLE, "TimeLockedMultiSig: use removeApprover to remove approver");
         super.revokeRole(role, account);
     }
 
     function renounceRole(bytes32 role, address account) public virtual override {
-        require(role != APPROVER_ROLE, "TimeLockedMultiSig.renounceRole: use removeApprover to remove approver");
+        require(role != APPROVER_ROLE, "TimeLockedMultiSig: use removeApprover to remove approver");
         super.renounceRole(role, account);
     }
 
@@ -124,10 +159,10 @@ contract TimeLockedMultiSig is AccessControl {
         address approver,
         uint256 threshold
     ) public virtual onlyRole(getRoleAdmin(APPROVER_ROLE)) {
-        require(approver != address(0), "TimeLockedMultiSig.addApprover: approver should not be the zero address");
-        require(!hasRole(APPROVER_ROLE, approver), "TimeLockedMultiSig.addApprover: approver should not have APPROVER_ROLE");
-        require(_threshold <= _approvers.length + 1, "TimeLockedMultiSig.addApprover: threshold should be less than or equal to approvers.length + 1");
-        require(_threshold > (_approvers.length + 1) / 2, "TimeLockedMultiSig.addApprover: threshold should be greater than (approvers.length + 1) / 2");
+        require(approver != address(0), "TimeLockedMultiSig: approver should not be the zero address");
+        require(!hasRole(APPROVER_ROLE, approver), "TimeLockedMultiSig: approver should not have APPROVER_ROLE");
+        require(_threshold <= _approvers.length + 1, "TimeLockedMultiSig: threshold should be less than or equal to approvers.length + 1");
+        require(_threshold > (_approvers.length + 1) / 2, "TimeLockedMultiSig: threshold should be greater than (approvers.length + 1) / 2");
 
         uint256 oldThreshold = _threshold;
         _threshold = threshold;
@@ -142,11 +177,11 @@ contract TimeLockedMultiSig is AccessControl {
         address approver,
         uint256 threshold
     ) public virtual onlyRole(getRoleAdmin(APPROVER_ROLE)) {
-        require(approver != address(0), "TimeLockedMultiSig.removeApprover: approver should not be the zero address");
-        require(hasRole(APPROVER_ROLE, approver), "TimeLockedMultiSig.removeApprover: approver should have APPROVER_ROLE");
-        require(_approvers.length > 1, "TimeLockedMultiSig.removeApprover: approvers.length should be greater than 1");
-        require(threshold <= _approvers.length - 1, "TimeLockedMultiSig.removeApprover: threshold should be less than or equal to approvers.length - 1");
-        require(threshold > (_approvers.length - 1) / 2, "TimeLockedMultiSig.removeApprover: threshold should be greater than (approvers.length - 1) / 2");
+        require(approver != address(0), "TimeLockedMultiSig: approver should not be the zero address");
+        require(hasRole(APPROVER_ROLE, approver), "TimeLockedMultiSig: approver should have APPROVER_ROLE");
+        require(_approvers.length > 1, "TimeLockedMultiSig: approvers.length should be greater than 1");
+        require(threshold <= _approvers.length - 1, "TimeLockedMultiSig: threshold should be less than or equal to approvers.length - 1");
+        require(threshold > (_approvers.length - 1) / 2, "TimeLockedMultiSig: threshold should be greater than (approvers.length - 1) / 2");
 
         uint256 oldThreshold = _threshold;
         for (uint i = 0; i < _approvers.length; i++) {
@@ -168,12 +203,12 @@ contract TimeLockedMultiSig is AccessControl {
         address newApprover,
         uint256 threshold
     ) public virtual onlyRole(getRoleAdmin(APPROVER_ROLE)) {
-        require(oldApprover != address(0), "TimeLockedMultiSig.updateApprover: old approver should not be the zero address");
-        require(newApprover != address(0), "TimeLockedMultiSig.updateApprover: new approver should not be the zero address");
-        require(hasRole(APPROVER_ROLE, oldApprover), "TimeLockedMultiSig.updateApprover: old approver should have APPROVER_ROLE");
-        require(!hasRole(APPROVER_ROLE, newApprover), "TimeLockedMultiSig.updateApprover: new approver should not have APPROVER_ROLE");
-        require(threshold <= _approvers.length, "TimeLockedMultiSig.updateApprover: threshold should be less than or equal to approvers.length");
-        require(threshold > _approvers.length / 2, "TimeLockedMultiSig.updateApprover: threshold should be greater than approvers.length / 2");
+        require(oldApprover != address(0), "TimeLockedMultiSig: old approver should not be the zero address");
+        require(newApprover != address(0), "TimeLockedMultiSig: new approver should not be the zero address");
+        require(hasRole(APPROVER_ROLE, oldApprover), "TimeLockedMultiSig: old approver should have APPROVER_ROLE");
+        require(!hasRole(APPROVER_ROLE, newApprover), "TimeLockedMultiSig: new approver should not have APPROVER_ROLE");
+        require(threshold <= _approvers.length, "TimeLockedMultiSig: threshold should be less than or equal to approvers.length");
+        require(threshold > _approvers.length / 2, "TimeLockedMultiSig: threshold should be greater than approvers.length / 2");
 
         uint256 oldThreshold = _threshold;
         for (uint i = 0; i < _approvers.length; i++) {
@@ -188,5 +223,215 @@ contract TimeLockedMultiSig is AccessControl {
 
         emit MinApprovalThresholdChange(oldThreshold, threshold);
         emit ApproverUpdated(oldApprover, newApprover);
+    }
+
+    /**
+     * @dev Returns whether an id correspond to a registered operation. This
+     * includes both Pending, Ready and Done operations.
+     */
+    function isOperation(bytes32 id) public view virtual returns (bool) {
+        return getTimestamp(id) > 0;
+    }
+
+    /**
+     * @dev Returns whether an operation is pending or not. Note that a "pending" operation may also be "ready".
+     */
+    function isOperationPending(bytes32 id) public view virtual returns (bool) {
+        return getTimestamp(id) > _DONE_TIMESTAMP;
+    }
+
+    /**
+     * @dev Returns whether an operation is ready for execution. Note that a "ready" operation is also "pending".
+     */
+    function isOperationReady(bytes32 id) public view virtual returns (bool) {
+        uint256 timestamp = getTimestamp(id);
+        return timestamp > _DONE_TIMESTAMP && timestamp <= block.timestamp;
+    }
+
+    /**
+     * @dev Returns whether an operation is done or not.
+     */
+    function isOperationDone(bytes32 id) public view virtual returns (bool) {
+        return getTimestamp(id) == _DONE_TIMESTAMP;
+    }
+
+    /**
+     * @dev Returns the timestamp at which an operation becomes ready (0 for
+     * unset operations, 1 for done operations).
+     */
+    function getTimestamp(bytes32 id) public view virtual returns (uint256) {
+        return _transactions[id].timestamps;
+    }
+
+    /**
+     * @dev Returns the minimum delay for an operation to become valid.
+     *
+     * This value can be changed by executing an operation that calls `updateDelay`.
+     */
+    function getMinDelay() public view virtual returns (uint256) {
+        return _minDelay;
+    }
+
+    /**
+     * @dev Returns the identifier of an operation containing a single
+     * transaction.
+     */
+    function hashOperation(
+        address target,
+        uint256 value,
+        bytes calldata data,
+        bytes32 predecessor,
+        bytes32 salt
+    ) public pure virtual returns (bytes32) {
+        return keccak256(abi.encode(target, value, data, predecessor, salt));
+    }
+
+    /**
+     * @dev Schedule an operation containing a single transaction.
+     *
+     * Emits {CallSalt} if salt is nonzero, and {CallScheduled}.
+     *
+     * Requirements:
+     *
+     * - the caller must have the 'proposer' role.
+     */
+    function schedule(
+        address target,
+        uint256 value,
+        bytes calldata data,
+        bytes32 predecessor,
+        bytes32 salt,
+        uint256 delay
+    ) public virtual onlyRole(PROPOSER_ROLE) {
+        bytes32 id = hashOperation(target, value, data, predecessor, salt);
+        _schedule(id, delay);
+        emit CallScheduled(id, target, value, data, predecessor, delay);
+        if (salt != bytes32(0)) {
+            emit CallSalt(id, salt);
+        }
+    }
+
+    /**
+     * @dev Schedule an operation that is to become valid after a given delay.
+     */
+    function _schedule(bytes32 id, uint256 delay) private {
+        require(!isOperation(id), "TimelockController: operation already scheduled");
+        require(delay >= getMinDelay(), "TimelockController: insufficient delay");
+        uint256 minExecutionTimestamp = block.timestamp + delay;
+
+        Transaction storage transaction = _transactions[id];
+        transaction.timestamps = minExecutionTimestamp;
+    }
+
+    /**
+     * @dev Cancel an operation.
+     *
+     * Requirements:
+     *
+     * - the caller must have the 'canceller' role.
+     */
+    function cancel(bytes32 id) public virtual onlyRole(CANCELLER_ROLE) {
+        require(isOperationPending(id), "TimelockController: operation cannot be cancelled");
+        delete _transactions[id];
+
+        emit Cancelled(id);
+    }
+
+    function approve(
+        address target,
+        uint256 value,
+        bytes calldata data,
+        bytes32 predecessor,
+        bytes32 salt
+    ) public virtual onlyRole(APPROVER_ROLE) {
+        bytes32 id = hashOperation(target, value, data, predecessor, salt);
+        _approve(id);
+        emit CallApproved(id);
+    }
+
+    function _approve(bytes32 id) private {
+        require(isOperationPending(id), "TimelockController: operation cannot be approved");
+
+        Transaction storage transaction = _transactions[id];
+        require(!transaction.isApproved[msg.sender], "TimelockController: operation already approved");
+        transaction.isApproved[msg.sender] = true;
+    }
+
+    /**
+     * @dev Execute an (ready) operation containing a single transaction.
+     *
+     * Emits a {CallExecuted} event.
+     *
+     * Requirements:
+     *
+     * - the caller must have the 'executor' role.
+     */
+    // This function can reenter, but it doesn't pose a risk because _afterCall checks that the proposal is pending,
+    // thus any modifications to the operation during reentrancy should be caught.
+    // slither-disable-next-line reentrancy-eth
+    function execute(
+        address target,
+        uint256 value,
+        bytes calldata payload,
+        bytes32 predecessor,
+        bytes32 salt
+    ) public payable virtual onlyRoleOrOpenRole(EXECUTOR_ROLE) {
+        bytes32 id = hashOperation(target, value, payload, predecessor, salt);
+
+        _beforeCall(id, predecessor);
+        _execute(target, value, payload);
+        emit CallExecuted(id, target, value, payload);
+        _afterCall(id);
+    }
+
+    /**
+     * @dev Execute an operation's call.
+     */
+    function _execute(address target, uint256 value, bytes calldata data) internal virtual {
+        (bool success, ) = target.call{value: value}(data);
+        require(success, "TimelockController: underlying transaction reverted");
+    }
+
+    /**
+     * @dev Checks before execution of an operation's calls.
+     */
+    function _beforeCall(bytes32 id, bytes32 predecessor) private view {
+        require(isOperationReady(id), "TimelockController: operation is not ready");
+        require(predecessor == bytes32(0) || isOperationDone(predecessor), "TimelockController: missing dependency");
+
+        Transaction storage transaction = _transactions[id];
+        uint256 approvalCount = 0;
+        for (uint256 i = 0; i < _approvers.length; i++) {
+            if (transaction.isApproved[_approvers[i]]) {
+                approvalCount++;
+            }
+        }
+
+        require(approvalCount >= _threshold, "TimelockController: insufficient approvals");
+    }
+
+    /**
+     * @dev Checks after execution of an operation's calls.
+     */
+    function _afterCall(bytes32 id) private {
+        require(isOperationReady(id), "TimelockController: operation is not ready");
+        Transaction storage transaction = _transactions[id];
+        transaction.timestamps = _DONE_TIMESTAMP;
+    }
+
+    /**
+     * @dev Changes the minimum timelock duration for future operations.
+     *
+     * Emits a {MinDelayChange} event.
+     *
+     * Requirements:
+     *
+     * - the caller must be the timelock itself. This can only be achieved by scheduling and later executing
+     * an operation where the timelock is the target and the data is the ABI-encoded call to this function.
+     */
+    function updateDelay(uint256 newDelay) external virtual {
+        require(msg.sender == address(this), "TimelockController: caller must be timelock");
+        emit MinDelayChange(_minDelay, newDelay);
+        _minDelay = newDelay;
     }
 }
