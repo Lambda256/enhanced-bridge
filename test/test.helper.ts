@@ -10,6 +10,10 @@ import { TransactionRequest } from "@ethersproject/providers";
 import { EnhancedMainBridge__factory } from "../typechain-types";
 import { EnhancedMainBridgeInterface } from "../typechain-types/contracts/EnhancedMainBridge";
 
+export function sleep(s: number) {
+  return new Promise((resolve) => setTimeout(resolve, s * 1000));
+}
+
 export async function deployEnhancedMainBridge(
   mainChainId: number,
   mainAdmin: SignerWithAddress,

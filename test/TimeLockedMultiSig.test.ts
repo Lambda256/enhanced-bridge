@@ -2,6 +2,7 @@ import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
 import { ethers } from "hardhat";
 import { TestToken, TimeLockedMultiSig } from "../typechain-types";
 import { expect } from "chai";
+import { sleep } from "./test.helper";
 
 async function timeLockedMultiSigTransactionProcess(
   timeLockedMultiSig: TimeLockedMultiSig,
@@ -241,7 +242,7 @@ describe("TimeLockedMultiSig", () => {
       const value = 0;
       const data = testToken.interface.encodeFunctionData("mint", [
         tokenReceiver.address,
-        50,
+        30,
       ]);
       const delay = 1;
 
@@ -360,7 +361,7 @@ describe("TimeLockedMultiSig", () => {
       await postExecuteTx.wait();
 
       const balance = await testToken.balanceOf(tokenReceiver.address);
-      expect(balance.toNumber()).to.equal(100);
+      expect(balance.toNumber()).to.equal(60);
     });
   });
   describe("UpdateDelay", () => {
@@ -395,6 +396,83 @@ describe("TimeLockedMultiSig", () => {
         salt,
         delay,
       );
+    });
+  });
+  describe("execute tx before delay and cancel it", () => {
+    let salt: Uint8Array;
+    let target: string;
+    let value: number;
+    let data: string;
+    let predecessor: string;
+    let delay: number;
+    before(() => {
+      salt = ethers.utils.randomBytes(32);
+      target = testToken.address;
+      value = 0;
+      data = testToken.interface.encodeFunctionData("mint", [
+        tokenReceiver.address,
+        20,
+      ]);
+      predecessor = ethers.constants.HashZero;
+      delay = 10;
+    });
+
+    it("is impossible to execute tx before delay", async () => {
+      const tx = await timeLockedMultiSig
+        .connect(proposers[0])
+        .schedule(target, value, data, predecessor, salt, delay);
+      await tx.wait();
+
+      for (let i = 0; i < threshold; i++) {
+        const tx = await timeLockedMultiSig
+          .connect(approvers[i])
+          .approve(target, value, data, predecessor, salt);
+        await tx.wait();
+      }
+
+      await expect(
+        timeLockedMultiSig
+          .connect(executors[0])
+          .execute(target, value, data, predecessor, salt),
+      ).revertedWith("TimelockController: operation is not ready");
+    });
+
+    it("is possible to cancel tx before execution", async () => {
+      const id = await timeLockedMultiSig.hashOperation(
+        target,
+        value,
+        data,
+        predecessor,
+        salt,
+      );
+      const tx = await timeLockedMultiSig.connect(proposers[0]).cancel(id);
+      await tx.wait();
+      await expect(tx).emit(timeLockedMultiSig, "Cancelled");
+    });
+
+    it("is possible to execute tx after delay", async () => {
+      const newSalt = ethers.utils.randomBytes(32);
+      const tx = await timeLockedMultiSig
+        .connect(proposers[0])
+        .schedule(target, value, data, predecessor, newSalt, delay);
+      await tx.wait();
+
+      for (let i = 0; i < threshold; i++) {
+        const tx = await timeLockedMultiSig
+          .connect(approvers[i])
+          .approve(target, value, data, predecessor, newSalt);
+        await tx.wait();
+      }
+
+      await sleep(10);
+
+      const executeTx = await timeLockedMultiSig
+        .connect(executors[0])
+        .execute(target, value, data, predecessor, newSalt);
+      await executeTx.wait();
+
+      const balance = await testToken.balanceOf(tokenReceiver.address);
+      expect(balance.toNumber()).to.equal(80);
     });
   });
 });
