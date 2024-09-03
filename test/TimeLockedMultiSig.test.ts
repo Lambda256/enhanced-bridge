@@ -1,25 +1,61 @@
 import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
 import { ethers } from "hardhat";
-import { TimeLockedMultiSig } from "../typechain-types";
+import { TestToken, TimeLockedMultiSig } from "../typechain-types";
 import { expect } from "chai";
 
+async function timeLockedMultiSigTransactionProcess(
+  timeLockedMultiSig: TimeLockedMultiSig,
+  proposer: SignerWithAddress,
+  approvers: SignerWithAddress[],
+  executor: SignerWithAddress,
+  threshold: number,
+  target: string,
+  value: number,
+  data: string,
+  predecessor: string,
+  salt: Uint8Array,
+  delay: number,
+) {
+  const scheduleTx = await timeLockedMultiSig
+    .connect(proposer)
+    .schedule(target, value, data, predecessor, salt, delay);
+  await scheduleTx.wait();
+
+  for (let i = 0; i < threshold; i++) {
+    const tx = await timeLockedMultiSig
+      .connect(approvers[i])
+      .approve(target, value, data, predecessor, salt);
+    await tx.wait();
+  }
+
+  const executeTx = await timeLockedMultiSig
+    .connect(executor)
+    .execute(target, value, data, predecessor, salt);
+  await executeTx.wait();
+}
+
 describe("TimeLockedMultiSig", () => {
-  let deployer: SignerWithAddress;
   let proposers: SignerWithAddress[];
   let approvers: SignerWithAddress[];
   let executors: SignerWithAddress[];
   let remainSigners: SignerWithAddress[];
+  let tokenReceiver: SignerWithAddress;
   let timeLockedMultiSig: TimeLockedMultiSig;
+  let testToken: TestToken;
   let threshold = 3;
   let minDelay = 1;
 
   before(async () => {
     const signers = await ethers.getSigners();
-    deployer = signers[0];
     proposers = signers.slice(1, 3);
     approvers = signers.slice(3, 7);
     executors = signers.slice(7, 8);
     remainSigners = signers.slice(8, 10);
+    tokenReceiver = signers[0];
+
+    const TestToken = await ethers.getContractFactory("TestToken");
+    testToken = await TestToken.deploy("TestToken", "TT", 18, 0, 100);
+    await testToken.deployed();
   });
 
   describe("Deploy TimeLockedMultiSig Contract", () => {
@@ -122,22 +158,19 @@ describe("TimeLockedMultiSig", () => {
     });
 
     it("should update approvers", async () => {
-      const scheduleTx = await timeLockedMultiSig
-        .connect(proposers[0])
-        .schedule(target, value, data, predecessor, salt, delay);
-      await scheduleTx.wait();
-
-      for (let i = 0; i < threshold; i++) {
-        const tx = await timeLockedMultiSig
-          .connect(approvers[i])
-          .approve(target, value, data, predecessor, salt);
-        await tx.wait();
-      }
-
-      const executeTx = await timeLockedMultiSig
-        .connect(executors[0])
-        .execute(target, value, data, predecessor, salt);
-      await executeTx.wait();
+      await timeLockedMultiSigTransactionProcess(
+        timeLockedMultiSig,
+        proposers[0],
+        approvers,
+        executors[0],
+        threshold,
+        target,
+        value,
+        data,
+        predecessor,
+        salt,
+        delay,
+      );
 
       const updatedApprovers = await timeLockedMultiSig.getApprovers();
       expect(updatedApprovers).contains(remainSigners[1].address);
@@ -165,26 +198,203 @@ describe("TimeLockedMultiSig", () => {
     });
 
     it("should remove approvers", async () => {
-      const scheduleTx = await timeLockedMultiSig
-        .connect(proposers[0])
-        .schedule(target, value, data, predecessor, salt, delay);
-      await scheduleTx.wait();
-
-      for (let i = 0; i < threshold; i++) {
-        const tx = await timeLockedMultiSig
-          .connect(approvers[i])
-          .approve(target, value, data, predecessor, salt);
-        await tx.wait();
-      }
-
-      const executeTx = await timeLockedMultiSig
-        .connect(executors[0])
-        .execute(target, value, data, predecessor, salt);
-      await executeTx.wait();
+      await timeLockedMultiSigTransactionProcess(
+        timeLockedMultiSig,
+        proposers[0],
+        approvers,
+        executors[0],
+        threshold,
+        target,
+        value,
+        data,
+        predecessor,
+        salt,
+        delay,
+      );
 
       const updatedApprovers = await timeLockedMultiSig.getApprovers();
       expect(updatedApprovers).not.contains(remainSigners[1].address);
       expect(updatedApprovers.length).to.equal(4);
+    });
+  });
+
+  describe("Predecessor", () => {
+    let predecessorTxParameter: {
+      target: string;
+      value: number;
+      data: string;
+      predecessor: string;
+      salt: Uint8Array;
+      delay: number;
+    };
+    let postTxParameter: {
+      target: string;
+      value: number;
+      data: string;
+      predecessor?: string;
+      salt: Uint8Array;
+      delay: number;
+    };
+
+    before(() => {
+      const target = testToken.address;
+      const value = 0;
+      const data = testToken.interface.encodeFunctionData("mint", [
+        tokenReceiver.address,
+        50,
+      ]);
+      const delay = 1;
+
+      predecessorTxParameter = {
+        target,
+        value,
+        data,
+        predecessor: ethers.constants.HashZero,
+        salt: ethers.utils.randomBytes(32),
+        delay,
+      };
+
+      postTxParameter = {
+        target,
+        value,
+        data,
+        salt: ethers.utils.randomBytes(32),
+        delay,
+      };
+    });
+
+    it("is impossible to execute transaction when predecessor is not 0, and not executed", async () => {
+      const predecessorTxId = await timeLockedMultiSig.hashOperation(
+        predecessorTxParameter.target,
+        predecessorTxParameter.value,
+        predecessorTxParameter.data,
+        predecessorTxParameter.predecessor,
+        predecessorTxParameter.salt,
+      );
+      const predecessorTx = await timeLockedMultiSig
+        .connect(proposers[0])
+        .schedule(
+          predecessorTxParameter.target,
+          predecessorTxParameter.value,
+          predecessorTxParameter.data,
+          predecessorTxParameter.predecessor,
+          predecessorTxParameter.salt,
+          predecessorTxParameter.delay,
+        );
+      await predecessorTx.wait();
+
+      const postTx = await timeLockedMultiSig
+        .connect(proposers[0])
+        .schedule(
+          postTxParameter.target,
+          postTxParameter.value,
+          postTxParameter.data,
+          predecessorTxId,
+          postTxParameter.salt,
+          postTxParameter.delay,
+        );
+      await postTx.wait();
+
+      for (let i = 0; i < threshold; i++) {
+        const preApproveTx = await timeLockedMultiSig
+          .connect(approvers[i])
+          .approve(
+            predecessorTxParameter.target,
+            predecessorTxParameter.value,
+            predecessorTxParameter.data,
+            predecessorTxParameter.predecessor,
+            predecessorTxParameter.salt,
+          );
+        await preApproveTx.wait();
+        const postApproveTx = await timeLockedMultiSig
+          .connect(approvers[i])
+          .approve(
+            postTxParameter.target,
+            postTxParameter.value,
+            postTxParameter.data,
+            predecessorTxId,
+            postTxParameter.salt,
+          );
+        await postApproveTx.wait();
+      }
+
+      await expect(
+        timeLockedMultiSig
+          .connect(executors[0])
+          .execute(
+            postTxParameter.target,
+            postTxParameter.value,
+            postTxParameter.data,
+            predecessorTxId,
+            postTxParameter.salt,
+          ),
+      ).revertedWith("TimelockController: missing dependency");
+    });
+    it("is possible to execute transaction when predecessor is executed", async () => {
+      const predecessorTxId = await timeLockedMultiSig.hashOperation(
+        predecessorTxParameter.target,
+        predecessorTxParameter.value,
+        predecessorTxParameter.data,
+        predecessorTxParameter.predecessor,
+        predecessorTxParameter.salt,
+      );
+      const preExecuteTx = await timeLockedMultiSig
+        .connect(executors[0])
+        .execute(
+          predecessorTxParameter.target,
+          predecessorTxParameter.value,
+          predecessorTxParameter.data,
+          predecessorTxParameter.predecessor,
+          predecessorTxParameter.salt,
+        );
+      await preExecuteTx.wait();
+      const postExecuteTx = await timeLockedMultiSig
+        .connect(executors[0])
+        .execute(
+          postTxParameter.target,
+          postTxParameter.value,
+          postTxParameter.data,
+          predecessorTxId,
+          postTxParameter.salt,
+        );
+      await postExecuteTx.wait();
+
+      const balance = await testToken.balanceOf(tokenReceiver.address);
+      expect(balance.toNumber()).to.equal(100);
+    });
+  });
+  describe("UpdateDelay", () => {
+    let salt: Uint8Array;
+    let target: string;
+    let value: number;
+    let data: string;
+    let predecessor: string;
+    let delay: number;
+    before(() => {
+      salt = ethers.utils.randomBytes(32);
+      target = timeLockedMultiSig.address;
+      value = 0;
+      data = timeLockedMultiSig.interface.encodeFunctionData("updateDelay", [
+        10,
+      ]);
+      predecessor = ethers.constants.HashZero;
+      delay = 1;
+    });
+
+    it("should update delay by TimeLockedMultiSig itself", async () => {
+      await timeLockedMultiSigTransactionProcess(
+        timeLockedMultiSig,
+        proposers[0],
+        approvers,
+        executors[0],
+        threshold,
+        target,
+        value,
+        data,
+        predecessor,
+        salt,
+        delay,
+      );
     });
   });
 });

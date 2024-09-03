@@ -111,9 +111,10 @@ contract TimeLockedMultiSig is ITimeLockedMultisig, AccessControl {
         super.revokeRole(role, account);
     }
 
+    /**
+     * @dev Renouncing is not allowed.
+     */
     function renounceRole(bytes32 role, address account) public virtual override {
-        require(role != APPROVER_ROLE, "TimeLockedMultiSig: use removeApprover to remove approver");
-        super.renounceRole(role, account);
     }
 
     function addApprover(
