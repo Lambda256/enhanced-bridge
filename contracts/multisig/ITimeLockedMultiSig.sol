@@ -3,6 +3,13 @@
 pragma solidity ^0.8.0;
 
 interface ITimeLockedMultisig {
+    enum OperationState {
+        Unset,
+        Waiting,
+        Ready,
+        Done
+    }
+
     /**
      * @dev Emitted when a call is scheduled as part of operation `id`.
      */
@@ -52,8 +59,8 @@ interface ITimeLockedMultisig {
     function updateApprover(address oldApprover, address newApprover, uint256 threshold) external;
 
     /**
-     * @dev Returns whether an id correspond to a registered operation. This
-     * includes both Pending, Ready and Done operations.
+     * @dev Returns whether an id corresponds to a registered operation. This
+     * includes both Waiting, Ready, and Done operations.
      */
     function isOperation(bytes32 id) external view returns (bool);
 
@@ -78,9 +85,18 @@ interface ITimeLockedMultisig {
      */
     function getTimestamp(bytes32 id) external view returns (uint256);
 
+    /**
+     * @dev Returns operation state.
+     */
+    function getOperationState(bytes32 id) external view returns (OperationState);
+
+    function getOperation(bytes32 id) external view returns (uint256, uint256);
+
     function getThreshold() external view returns (uint256);
 
     function getApprovers() external view returns (address[] memory);
+
+    function getApprovalCount(bytes32 id) external view returns (uint256);
 
     /**
      * @dev Returns the minimum delay for an operation to become valid.
@@ -130,6 +146,8 @@ interface ITimeLockedMultisig {
     // thus any modifications to the operation during reentrancy should be caught.
     // slither-disable-next-line reentrancy-eth
     function execute(address target, uint256 value, bytes calldata data, bytes32 predecessor, bytes32 salt) payable external;
+
+    function isApproved(address target, uint256 value, bytes calldata data, bytes32 predecessor, bytes32 salt, address approver) external view returns (bool);
 
     /**
      * @dev Changes the minimum timelock duration for future operations.

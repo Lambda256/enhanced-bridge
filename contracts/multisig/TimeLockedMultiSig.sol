@@ -3,7 +3,8 @@
 pragma solidity ^0.8.0;
 
 import "@openzeppelin/contracts/access/AccessControl.sol";
-import {ITimeLockedMultisig} from "./ITimeLockedMultiSig.sol";
+import {Address} from "@openzeppelin/contracts/utils/Address.sol";
+import "./ITimeLockedMultiSig.sol";
 
 contract TimeLockedMultiSig is ITimeLockedMultisig, AccessControl {
     bytes32 public constant TIMELOCK_ADMIN_ROLE = keccak256("TIMELOCK_ADMIN_ROLE");
@@ -15,12 +16,12 @@ contract TimeLockedMultiSig is ITimeLockedMultisig, AccessControl {
 
     address[] private _approvers;
 
-    struct Transaction {
+    struct Operation {
         uint256 timestamps;
         mapping(address => bool) isApproved;
     }
 
-    mapping (bytes32 => Transaction) private _transactions;
+    mapping (bytes32 => Operation) private _operations;
     uint256 private _minDelay;
     uint256 private _threshold;
 
@@ -185,24 +186,42 @@ contract TimeLockedMultiSig is ITimeLockedMultisig, AccessControl {
     }
 
     function isOperation(bytes32 id) public view virtual override returns (bool) {
-        return getTimestamp(id) > 0;
+        return getOperationState(id) != OperationState.Unset;
     }
 
     function isOperationPending(bytes32 id) public view virtual override returns (bool) {
-        return getTimestamp(id) > _DONE_TIMESTAMP;
+        OperationState state = getOperationState(id);
+        return state == OperationState.Waiting || state == OperationState.Ready;
     }
 
     function isOperationReady(bytes32 id) public view virtual override returns (bool) {
-        uint256 timestamp = getTimestamp(id);
-        return timestamp > _DONE_TIMESTAMP && timestamp <= block.timestamp;
+        return getOperationState(id) == OperationState.Ready;
+
     }
 
     function isOperationDone(bytes32 id) public view virtual override returns (bool) {
-        return getTimestamp(id) == _DONE_TIMESTAMP;
+        return getOperationState(id) == OperationState.Done;
     }
 
     function getTimestamp(bytes32 id) public view virtual override returns (uint256) {
-        return _transactions[id].timestamps;
+        return _operations[id].timestamps;
+    }
+
+    function getOperationState(bytes32 id) public view virtual override returns (OperationState) {
+        uint256 timestamp = getTimestamp(id);
+        if (timestamp == 0) {
+            return OperationState.Unset;
+        } else if (timestamp == _DONE_TIMESTAMP) {
+            return OperationState.Done;
+        } else if (timestamp > block.timestamp && getApprovalCount(id) >= getThreshold()) {
+            return OperationState.Waiting;
+        } else {
+            return OperationState.Ready;
+        }
+    }
+
+    function getOperation(bytes32 id) public view virtual override returns (uint256 timestamp, uint256 approvalCount) {
+        return (_operations[id].timestamps, getApprovalCount(id));
     }
 
     function getMinDelay() public view virtual override returns (uint256) {
@@ -215,6 +234,17 @@ contract TimeLockedMultiSig is ITimeLockedMultisig, AccessControl {
 
     function getApprovers() public view virtual override returns (address[] memory) {
         return _approvers;
+    }
+
+    function getApprovalCount(bytes32 id) public view virtual override returns (uint256) {
+        Operation storage operation = _operations[id];
+        uint256 approvalCount = 0;
+        for (uint256 i = 0; i < _approvers.length; i++) {
+            if (operation.isApproved[_approvers[i]]) {
+                approvalCount++;
+            }
+        }
+        return approvalCount;
     }
 
     function hashOperation(
@@ -251,13 +281,13 @@ contract TimeLockedMultiSig is ITimeLockedMultisig, AccessControl {
         require(delay >= getMinDelay(), "TimelockController: insufficient delay");
         uint256 minExecutionTimestamp = block.timestamp + delay;
 
-        Transaction storage transaction = _transactions[id];
-        transaction.timestamps = minExecutionTimestamp;
+        Operation storage operation = _operations[id];
+        operation.timestamps = minExecutionTimestamp;
     }
 
     function cancel(bytes32 id) public virtual override onlyRole(CANCELLER_ROLE) {
         require(isOperationPending(id), "TimelockController: operation cannot be cancelled");
-        delete _transactions[id];
+        delete _operations[id];
 
         emit Cancelled(id);
     }
@@ -277,9 +307,9 @@ contract TimeLockedMultiSig is ITimeLockedMultisig, AccessControl {
     function _approve(bytes32 id) private {
         require(isOperationPending(id), "TimelockController: operation cannot be approved");
 
-        Transaction storage transaction = _transactions[id];
-        require(!transaction.isApproved[msg.sender], "TimelockController: operation already approved");
-        transaction.isApproved[msg.sender] = true;
+        Operation storage operation = _operations[id];
+        require(!operation.isApproved[msg.sender], "TimelockController: operation already approved");
+        operation.isApproved[msg.sender] = true;
     }
 
     function execute(
@@ -301,8 +331,8 @@ contract TimeLockedMultiSig is ITimeLockedMultisig, AccessControl {
      * @dev Execute an operation's call.
      */
     function _execute(address target, uint256 value, bytes calldata data) internal virtual {
-        (bool success, ) = target.call{value: value}(data);
-        require(success, "TimelockController: underlying transaction reverted");
+        (bool success, bytes memory returndata) = target.call{value: value}(data);
+        Address.verifyCallResult(success, returndata, "TimelockController: execution failed");
     }
 
     /**
@@ -311,16 +341,6 @@ contract TimeLockedMultiSig is ITimeLockedMultisig, AccessControl {
     function _beforeCall(bytes32 id, bytes32 predecessor) private view {
         require(isOperationReady(id), "TimelockController: operation is not ready");
         require(predecessor == bytes32(0) || isOperationDone(predecessor), "TimelockController: missing dependency");
-
-        Transaction storage transaction = _transactions[id];
-        uint256 approvalCount = 0;
-        for (uint256 i = 0; i < _approvers.length; i++) {
-            if (transaction.isApproved[_approvers[i]]) {
-                approvalCount++;
-            }
-        }
-
-        require(approvalCount >= getThreshold(), "TimelockController: insufficient approvals");
     }
 
     /**
@@ -328,8 +348,8 @@ contract TimeLockedMultiSig is ITimeLockedMultisig, AccessControl {
      */
     function _afterCall(bytes32 id) private {
         require(isOperationReady(id), "TimelockController: operation is not ready");
-        Transaction storage transaction = _transactions[id];
-        transaction.timestamps = _DONE_TIMESTAMP;
+        Operation storage operation = _operations[id];
+        operation.timestamps = _DONE_TIMESTAMP;
     }
 
     function isApproved(
@@ -339,9 +359,9 @@ contract TimeLockedMultiSig is ITimeLockedMultisig, AccessControl {
         bytes32 predecessor,
         bytes32 salt,
         address approver
-    ) public view virtual returns (bool) {
+    ) public view virtual override returns (bool) {
         bytes32 id = hashOperation(target, value, payload, predecessor, salt);
-        return _transactions[id].isApproved[approver];
+        return _operations[id].isApproved[approver];
     }
 
     function updateDelay(uint256 newDelay) external virtual override {
