@@ -76,9 +76,10 @@ describe("TimeLockedMultiSig", () => {
 
     it("is possible to approve transaction only by approver", async () => {
       for (let i = 0; i < threshold; i++) {
-        await timeLockedMultiSig
+        const tx = await timeLockedMultiSig
           .connect(approvers[i])
           .approve(target, value, data, predecessor, salt);
+        await tx.wait();
       }
 
       const id = await timeLockedMultiSig.hashOperation(
