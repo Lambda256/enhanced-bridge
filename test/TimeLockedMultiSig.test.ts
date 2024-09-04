@@ -2,38 +2,7 @@ import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
 import { ethers } from "hardhat";
 import { TestToken, TimeLockedMultiSig } from "../typechain-types";
 import { expect } from "chai";
-import { sleep } from "./test.helper";
-
-async function timeLockedMultiSigTransactionProcess(
-  timeLockedMultiSig: TimeLockedMultiSig,
-  proposer: SignerWithAddress,
-  approvers: SignerWithAddress[],
-  executor: SignerWithAddress,
-  threshold: number,
-  target: string,
-  value: number,
-  data: string,
-  predecessor: string,
-  salt: Uint8Array,
-  delay: number,
-) {
-  const scheduleTx = await timeLockedMultiSig
-    .connect(proposer)
-    .schedule(target, value, data, predecessor, salt, delay);
-  await scheduleTx.wait();
-
-  for (let i = 0; i < threshold; i++) {
-    const tx = await timeLockedMultiSig
-      .connect(approvers[i])
-      .approve(target, value, data, predecessor, salt);
-    await tx.wait();
-  }
-
-  const executeTx = await timeLockedMultiSig
-    .connect(executor)
-    .execute(target, value, data, predecessor, salt);
-  await executeTx.wait();
-}
+import { sleep, timeLockedMultiSigTransactionProcess } from "./test.helper";
 
 describe("TimeLockedMultiSig", () => {
   let proposers: SignerWithAddress[];
