@@ -349,14 +349,9 @@ contract TimeLockedMultiSig is ITimeLockedMultisig, AccessControl {
     }
 
     function isApproved(
-        address target,
-        uint256 value,
-        bytes calldata payload,
-        bytes32 predecessor,
-        bytes32 salt,
+        bytes32 id,
         address approver
     ) public view virtual override returns (bool) {
-        bytes32 id = hashOperation(target, value, payload, predecessor, salt);
         return _operations[id].isApproved[approver];
     }
 

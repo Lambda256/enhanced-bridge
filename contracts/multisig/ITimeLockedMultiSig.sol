@@ -147,7 +147,7 @@ interface ITimeLockedMultisig {
     // slither-disable-next-line reentrancy-eth
     function execute(address target, uint256 value, bytes calldata data, bytes32 predecessor, bytes32 salt) payable external;
 
-    function isApproved(address target, uint256 value, bytes calldata data, bytes32 predecessor, bytes32 salt, address approver) external view returns (bool);
+    function isApproved(bytes32 id, address approver) external view returns (bool);
 
     /**
      * @dev Changes the minimum timelock duration for future operations.
