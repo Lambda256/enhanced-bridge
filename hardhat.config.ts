@@ -4,6 +4,7 @@ import "hardhat-storage-layout";
 import "./scripts/deploy";
 import "./scripts/upgrade";
 import "./scripts/deploy-transfer-all";
+import "./scripts/upgrade-by-tlm";
 
 const config: HardhatUserConfig = {
   solidity: {
