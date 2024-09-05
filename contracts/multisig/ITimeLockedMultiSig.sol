@@ -190,7 +190,7 @@ interface ITimeLockedMultisig {
     // This function can reenter, but it doesn't pose a risk because _afterCall checks that the proposal is pending,
     // thus any modifications to the operation during reentrancy should be caught.
     // slither-disable-next-line reentrancy-eth
-    function execute(address target, uint256 value, bytes calldata data, bytes32 predecessor, bytes32 salt) payable external;
+    function execute(address target, uint256 value, bytes calldata data, bytes32 predecessor, bytes32 salt) external;
 
     /**
      * @dev Returns whether an operation has been approved by a given approver.

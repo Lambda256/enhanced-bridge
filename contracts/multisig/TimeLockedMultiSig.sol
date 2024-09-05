@@ -314,7 +314,7 @@ contract TimeLockedMultiSig is ITimeLockedMultisig, AccessControl {
         bytes calldata payload,
         bytes32 predecessor,
         bytes32 salt
-    ) public payable virtual override onlyRoleOrOpenRole(EXECUTOR_ROLE) {
+    ) public virtual override onlyRoleOrOpenRole(EXECUTOR_ROLE) {
         bytes32 id = hashOperation(target, value, payload, predecessor, salt);
 
         _beforeCall(id, predecessor);
