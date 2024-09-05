@@ -22,7 +22,7 @@ contract TimeLockedMultiSig is ITimeLockedMultisig, AccessControl {
     }
 
     mapping (bytes32 => Operation) private _operations;
-    uint256 private _minDelay;
+    uint256 private _minDelay; // seconds
     uint256 private _threshold;
 
     /**

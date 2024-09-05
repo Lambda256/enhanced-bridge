@@ -22,6 +22,9 @@ interface ITimeLockedMultisig {
         uint256 delay
     );
 
+    /**
+     * @dev Emitted when a call is approved as part of operation `id`.
+     */
     event CallApproved(bytes32 indexed id);
 
     /**
@@ -44,18 +47,39 @@ interface ITimeLockedMultisig {
      */
     event MinDelayChange(uint256 oldDuration, uint256 newDuration);
 
+    /**
+      * @dev Emitted when the minimum approval threshold is modified.
+      */
     event MinApprovalThresholdChange(uint256 oldThreshold, uint256 newThreshold);
 
+    /**
+      * @dev Emitted when an approver is added to the multisig.
+      */
     event ApproverAdded(address indexed approver);
 
+    /**
+      * @dev Emitted when an approver is removed from the multisig.
+      */
     event ApproverRemoved(address indexed approver);
 
+    /**
+      * @dev Emitted when an approver is updated in the multisig.
+      */
     event ApproverUpdated(address oldApprover, address indexed newApprover);
 
+    /**
+      * @dev Adds an approver to the multisig.
+      */
     function addApprover(address approver, uint256 threshold) external;
 
+    /**
+      * @dev remove an approver to the multisig.
+      */
     function removeApprover(address approver, uint256 threshold) external;
 
+    /**
+      * @dev update an approver to the multisig.
+      */
     function updateApprover(address oldApprover, address newApprover, uint256 threshold) external;
 
     /**
@@ -90,12 +114,24 @@ interface ITimeLockedMultisig {
      */
     function getOperationState(bytes32 id) external view returns (OperationState);
 
+    /**
+      * @dev Returns the timestamp, approval count of an operation.
+      */
     function getOperation(bytes32 id) external view returns (uint256, uint256);
 
+    /**
+     * @dev Returns the minimum approval threshold for an operation to become valid.
+     */
     function getThreshold() external view returns (uint256);
 
+    /**
+     * @dev Returns the array of approvers.
+     */
     function getApprovers() external view returns (address[] memory);
 
+    /**
+     * @dev Returns the number of approvals for an operation.
+     */
     function getApprovalCount(bytes32 id) external view returns (uint256);
 
     /**
@@ -131,6 +167,15 @@ interface ITimeLockedMultisig {
      */
     function cancel(bytes32 id) external;
 
+    /**
+     * @dev Approve an operation.
+     *
+     * Emits a {CallApproved} event.
+     *
+     * Requirements:
+     *
+     * - the caller must have the 'approver' role.
+     */
     function approve(address target, uint256 value, bytes calldata data, bytes32 predecessor, bytes32 salt) external;
 
     /**
@@ -147,6 +192,9 @@ interface ITimeLockedMultisig {
     // slither-disable-next-line reentrancy-eth
     function execute(address target, uint256 value, bytes calldata data, bytes32 predecessor, bytes32 salt) payable external;
 
+    /**
+     * @dev Returns whether an operation has been approved by a given approver.
+     */
     function isApproved(bytes32 id, address approver) external view returns (bool);
 
     /**
