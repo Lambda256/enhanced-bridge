@@ -7,8 +7,15 @@ import {
 } from "@ethersproject/abstract-provider";
 import { expect } from "chai";
 import { TransactionRequest } from "@ethersproject/providers";
-import { EnhancedMainBridge__factory } from "../typechain-types";
+import {
+  EnhancedMainBridge__factory,
+  TimeLockedMultiSig,
+} from "../typechain-types";
 import { EnhancedMainBridgeInterface } from "../typechain-types/contracts/EnhancedMainBridge";
+
+export function sleep(s: number) {
+  return new Promise((resolve) => setTimeout(resolve, s * 1000));
+}
 
 export async function deployEnhancedMainBridge(
   mainChainId: number,
@@ -180,4 +187,35 @@ export function createTxId(to: string, data: string, count: number) {
   );
 
   return ethers.utils.keccak256(packed);
+}
+
+export async function timeLockedMultiSigTransactionProcess(
+  timeLockedMultiSig: TimeLockedMultiSig,
+  proposer: SignerWithAddress,
+  approvers: SignerWithAddress[],
+  executor: SignerWithAddress,
+  threshold: number,
+  target: string,
+  value: number,
+  data: string,
+  predecessor: string,
+  salt: Uint8Array,
+  delay: number,
+) {
+  const scheduleTx = await timeLockedMultiSig
+    .connect(proposer)
+    .schedule(target, value, data, predecessor, salt, delay);
+  await scheduleTx.wait();
+
+  for (let i = 0; i < threshold; i++) {
+    const tx = await timeLockedMultiSig
+      .connect(approvers[i])
+      .approve(target, value, data, predecessor, salt);
+    await tx.wait();
+  }
+
+  const executeTx = await timeLockedMultiSig
+    .connect(executor)
+    .execute(target, value, data, predecessor, salt);
+  await executeTx.wait();
 }
