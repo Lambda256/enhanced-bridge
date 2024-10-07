@@ -13,6 +13,7 @@ contract TimeLockedMultiSig is ITimeLockedMultisig, AccessControl {
     bytes32 public constant EXECUTOR_ROLE = keccak256("EXECUTOR_ROLE");
     bytes32 public constant CANCELLER_ROLE = keccak256("CANCELLER_ROLE");
     uint256 internal constant _DONE_TIMESTAMP = uint256(1);
+    uint256 internal constant _CANCELLED_TIMESTAMP = uint256(2);
 
     address[] private _approvers;
 
@@ -199,6 +200,10 @@ contract TimeLockedMultiSig is ITimeLockedMultisig, AccessControl {
         return getOperationState(id) == OperationState.Done;
     }
 
+    function isOperationCancelled(bytes32 id) public view virtual override returns (bool) {
+        return getOperationState(id) == OperationState.Cancelled;
+    }
+
     function getTimestamp(bytes32 id) public view virtual override returns (uint256) {
         return _operations[id].timestamps;
     }
@@ -209,6 +214,8 @@ contract TimeLockedMultiSig is ITimeLockedMultisig, AccessControl {
             return OperationState.Unset;
         } else if (timestamp == _DONE_TIMESTAMP) {
             return OperationState.Done;
+        } else if (timestamp == _CANCELLED_TIMESTAMP) {
+            return OperationState.Cancelled;
         } else if (timestamp > block.timestamp && getApprovalCount(id) >= getThreshold()) {
             return OperationState.Waiting;
         } else {
@@ -274,6 +281,7 @@ contract TimeLockedMultiSig is ITimeLockedMultisig, AccessControl {
      */
     function _schedule(bytes32 id, uint256 delay) private {
         require(!isOperation(id), "TimelockController: operation already scheduled");
+        require(!isOperationCancelled(id), "TimelockController: operation already cancelled");
         require(delay >= getMinDelay(), "TimelockController: insufficient delay");
         uint256 minExecutionTimestamp = block.timestamp + delay;
 
@@ -283,7 +291,7 @@ contract TimeLockedMultiSig is ITimeLockedMultisig, AccessControl {
 
     function cancel(bytes32 id) public virtual override onlyRole(CANCELLER_ROLE) {
         require(isOperationPending(id), "TimelockController: operation cannot be cancelled");
-        delete _operations[id];
+        _operations[id].timestamps = _CANCELLED_TIMESTAMP;
 
         emit Cancelled(id);
     }
