@@ -7,6 +7,7 @@ interface ITimeLockedMultisig {
         Unset,
         Waiting,
         Ready,
+        Cancelled,
         Done
     }
 
@@ -102,6 +103,11 @@ interface ITimeLockedMultisig {
      * @dev Returns whether an operation is done or not.
      */
     function isOperationDone(bytes32 id) external view returns (bool);
+
+    /**
+     * @dev Returns whether an operation is cancelled or not.
+     */
+    function isOperationCancelled(bytes32 id) external view returns (bool);
 
     /**
      * @dev Returns the timestamp at which an operation becomes ready (0 for
